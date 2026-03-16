@@ -87,6 +87,37 @@ func TestAcceptance_Read_FileContentMatchesDisk(t *testing.T) {
 	}
 }
 
+func TestAcceptance_ReadDeep_ScopeReturnsFullTree(t *testing.T) {
+	root := filepath.Join(testdataDir(t), "vault")
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	result, err := ReadDeep(v, "S01", "")
+	if err != nil {
+		t.Fatalf("ReadDeep: %v", err)
+	}
+
+	if len(result.DeepChildren) == 0 {
+		t.Fatal("deep scope should have areas as DeepChildren")
+	}
+	// Verify nested structure goes all the way to IDs
+	foundJDex := false
+	for _, area := range result.DeepChildren {
+		for _, cat := range area.DeepChildren {
+			for _, id := range cat.DeepChildren {
+				if id.Content != "" {
+					foundJDex = true
+				}
+			}
+		}
+	}
+	if !foundJDex {
+		t.Error("deep scope read should contain JDex content from descendant IDs")
+	}
+}
+
 func TestAcceptance_Read_IDFilesExcludeJDex(t *testing.T) {
 	root := filepath.Join(testdataDir(t), "vault")
 	v, err := ParseVault(root)

@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -161,6 +162,38 @@ func TestSearch_NameDoesNotIncludeMatchLine(t *testing.T) {
 	for _, r := range results {
 		if r.MatchLine != "" {
 			t.Errorf("name search should not set MatchLine, got %q", r.MatchLine)
+		}
+	}
+}
+
+func TestSearch_BreadcrumbPopulated(t *testing.T) {
+	results, err := Search(searchFixture, "Theatre", SearchOpts{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected results")
+	}
+	for _, r := range results {
+		if r.Breadcrumb == "" {
+			t.Errorf("Breadcrumb should not be empty for %s", r.Ref)
+		}
+	}
+}
+
+func TestSearch_BreadcrumbContainsHierarchy(t *testing.T) {
+	results, err := Search(searchFixture, "Theatre", SearchOpts{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	bc := results[0].Breadcrumb
+	// Should contain scope, area, category, and ID
+	for _, want := range []string{"Me", "Lifestyle", "Entertainment", "Theatre"} {
+		if !strings.Contains(bc, want) {
+			t.Errorf("Breadcrumb %q missing %q", bc, want)
 		}
 	}
 }

@@ -10,13 +10,14 @@ import (
 
 // ReadResult contains the content and metadata for a JD reference at any level.
 type ReadResult struct {
-	Type     string   // "scope", "area", "category", "id", "file"
-	Ref      string   // "S01", "S01.10-19", "S01.11", "S01.11.11"
-	Name     string
-	Path     string
-	Content  string   // JDex content for IDs, file content for files, summary for higher levels
-	Files    []string // only populated for ID-level reads
-	Children []string // populated for scope/area/category (formatted as "ref name")
+	Type         string       // "scope", "area", "category", "id", "file"
+	Ref          string       // "S01", "S01.10-19", "S01.11", "S01.11.11"
+	Name         string
+	Path         string
+	Content      string       // JDex content for IDs, file content for files
+	Files        []string     // only populated for ID-level reads
+	Children     []string     // populated for scope/area/category (formatted as "ref name")
+	DeepChildren []ReadResult // populated only by ReadDeep for recursive reads
 }
 
 // Read returns information about any JD reference level, with optional file reading for IDs.
@@ -174,6 +175,84 @@ func readID(v *Vault, m []string, file string) (*ReadResult, error) {
 	}
 	sort.Strings(result.Files)
 
+	return result, nil
+}
+
+// ReadDeep is like Read but recursively populates DeepChildren for scope/area/category levels.
+func ReadDeep(v *Vault, ref string, file string) (*ReadResult, error) {
+	result, err := Read(v, ref, file)
+	if err != nil {
+		return nil, err
+	}
+	return deepPopulate(v, result)
+}
+
+func deepPopulate(v *Vault, result *ReadResult) (*ReadResult, error) {
+	switch result.Type {
+	case "scope":
+		m := filterScopeRe.FindStringSubmatch(result.Ref)
+		if m == nil {
+			return result, nil
+		}
+		scopeNum, _ := strconv.Atoi(m[1])
+		for _, s := range v.Scopes {
+			if s.Number != scopeNum {
+				continue
+			}
+			for _, a := range s.Areas {
+				areaRef := fmt.Sprintf("S%02d.%02d-%02d", a.ScopeNumber, a.RangeStart, a.RangeEnd)
+				child, err := ReadDeep(v, areaRef, "")
+				if err != nil {
+					continue
+				}
+				result.DeepChildren = append(result.DeepChildren, *child)
+			}
+		}
+	case "area":
+		m := searchAreaRe.FindStringSubmatch(result.Ref)
+		if m == nil {
+			return result, nil
+		}
+		scopeNum, _ := strconv.Atoi(m[1])
+		rangeStart, _ := strconv.Atoi(m[2])
+		for _, s := range v.Scopes {
+			if s.Number != scopeNum {
+				continue
+			}
+			for _, a := range s.Areas {
+				if a.RangeStart != rangeStart {
+					continue
+				}
+				for _, c := range a.Categories {
+					catRef := fmt.Sprintf("S%02d.%02d", c.ScopeNumber, c.Number)
+					child, err := ReadDeep(v, catRef, "")
+					if err != nil {
+						continue
+					}
+					result.DeepChildren = append(result.DeepChildren, *child)
+				}
+			}
+		}
+	case "category":
+		m := searchCategoryRe.FindStringSubmatch(result.Ref)
+		if m == nil {
+			return result, nil
+		}
+		scopeNum, _ := strconv.Atoi(m[1])
+		catNum, _ := strconv.Atoi(m[2])
+		cat, err := findCategory(v, scopeNum, catNum)
+		if err != nil {
+			return result, nil
+		}
+		for _, id := range cat.IDs {
+			idRef := fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number)
+			child, err := Read(v, idRef, "")
+			if err != nil {
+				continue
+			}
+			result.DeepChildren = append(result.DeepChildren, *child)
+		}
+	}
 	return result, nil
 }
 

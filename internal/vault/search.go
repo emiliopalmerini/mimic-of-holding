@@ -12,11 +12,12 @@ import (
 
 // SearchResult represents a single match from a vault search.
 type SearchResult struct {
-	Type      string // "scope", "area", "category", "id"
-	Ref       string // "S01", "S01.10-19", "S01.11", "S01.11.11"
-	Name      string
-	Path      string
-	MatchLine string // non-empty only for content matches, format: "filename: line"
+	Type       string // "scope", "area", "category", "id"
+	Ref        string // "S01", "S01.10-19", "S01.11", "S01.11.11"
+	Name       string
+	Path       string
+	Breadcrumb string // human-readable hierarchy path, e.g., "S01 Me > S01.11 Entertainment > ..."
+	MatchLine  string // non-empty only for content matches, format: "filename: line"
 }
 
 // SearchOpts configures search behavior.
@@ -33,6 +34,22 @@ var (
 )
 
 const maxLinesPerFile = 3
+
+func scopeBreadcrumb(s Scope) string {
+	return fmt.Sprintf("S%02d %s", s.Number, s.Name)
+}
+
+func areaBreadcrumb(s Scope, a Area) string {
+	return fmt.Sprintf("%s > S%02d.%02d-%02d %s", scopeBreadcrumb(s), a.ScopeNumber, a.RangeStart, a.RangeEnd, a.Name)
+}
+
+func categoryBreadcrumb(s Scope, a Area, c Category) string {
+	return fmt.Sprintf("%s > S%02d.%02d %s", areaBreadcrumb(s, a), c.ScopeNumber, c.Number, c.Name)
+}
+
+func idBreadcrumb(s Scope, a Area, c Category, id ID) string {
+	return fmt.Sprintf("%s > S%02d.%02d.%02d %s", categoryBreadcrumb(s, a, c), id.ScopeNumber, id.CategoryNum, id.Number, id.Name)
+}
 
 // Search finds items in the vault matching the given query.
 func Search(v *Vault, query string, opts SearchOpts) ([]SearchResult, error) {
@@ -82,10 +99,11 @@ func searchByRef(v *Vault, query string) ([]SearchResult, bool) {
 		for _, s := range v.Scopes {
 			if s.Number == num {
 				return []SearchResult{{
-					Type: "scope",
-					Ref:  fmt.Sprintf("S%02d", s.Number),
-					Name: s.Name,
-					Path: s.Path,
+					Type:       "scope",
+					Ref:        fmt.Sprintf("S%02d", s.Number),
+					Name:       s.Name,
+					Path:       s.Path,
+					Breadcrumb: scopeBreadcrumb(s),
 				}}, true
 			}
 		}
@@ -102,10 +120,11 @@ func searchByRef(v *Vault, query string) ([]SearchResult, bool) {
 			for _, a := range s.Areas {
 				if a.RangeStart == rangeStart {
 					return []SearchResult{{
-						Type: "area",
-						Ref:  fmt.Sprintf("S%02d.%02d-%02d", a.ScopeNumber, a.RangeStart, a.RangeEnd),
-						Name: a.Name,
-						Path: a.Path,
+						Type:       "area",
+						Ref:        fmt.Sprintf("S%02d.%02d-%02d", a.ScopeNumber, a.RangeStart, a.RangeEnd),
+						Name:       a.Name,
+						Path:       a.Path,
+						Breadcrumb: areaBreadcrumb(s, a),
 					}}, true
 				}
 			}
@@ -124,10 +143,11 @@ func searchByRef(v *Vault, query string) ([]SearchResult, bool) {
 				for _, c := range a.Categories {
 					if c.Number == catNum {
 						return []SearchResult{{
-							Type: "category",
-							Ref:  fmt.Sprintf("S%02d.%02d", c.ScopeNumber, c.Number),
-							Name: c.Name,
-							Path: c.Path,
+							Type:       "category",
+							Ref:        fmt.Sprintf("S%02d.%02d", c.ScopeNumber, c.Number),
+							Name:       c.Name,
+							Path:       c.Path,
+							Breadcrumb: categoryBreadcrumb(s, a, c),
 						}}, true
 					}
 				}
@@ -152,10 +172,11 @@ func searchByRef(v *Vault, query string) ([]SearchResult, bool) {
 					for _, id := range c.IDs {
 						if id.Number == idNum {
 							return []SearchResult{{
-								Type: "id",
-								Ref:  fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number),
-								Name: id.Name,
-								Path: id.Path,
+								Type:       "id",
+								Ref:        fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number),
+								Name:       id.Name,
+								Path:       id.Path,
+								Breadcrumb: idBreadcrumb(s, a, c, id),
 							}}, true
 						}
 					}
@@ -175,37 +196,41 @@ func searchByName(scopes []Scope, query string) []SearchResult {
 	for _, s := range scopes {
 		if strings.Contains(strings.ToLower(s.Name), q) {
 			results = append(results, SearchResult{
-				Type: "scope",
-				Ref:  fmt.Sprintf("S%02d", s.Number),
-				Name: s.Name,
-				Path: s.Path,
+				Type:       "scope",
+				Ref:        fmt.Sprintf("S%02d", s.Number),
+				Name:       s.Name,
+				Path:       s.Path,
+				Breadcrumb: scopeBreadcrumb(s),
 			})
 		}
 		for _, a := range s.Areas {
 			if strings.Contains(strings.ToLower(a.Name), q) {
 				results = append(results, SearchResult{
-					Type: "area",
-					Ref:  fmt.Sprintf("S%02d.%02d-%02d", a.ScopeNumber, a.RangeStart, a.RangeEnd),
-					Name: a.Name,
-					Path: a.Path,
+					Type:       "area",
+					Ref:        fmt.Sprintf("S%02d.%02d-%02d", a.ScopeNumber, a.RangeStart, a.RangeEnd),
+					Name:       a.Name,
+					Path:       a.Path,
+					Breadcrumb: areaBreadcrumb(s, a),
 				})
 			}
 			for _, c := range a.Categories {
 				if strings.Contains(strings.ToLower(c.Name), q) {
 					results = append(results, SearchResult{
-						Type: "category",
-						Ref:  fmt.Sprintf("S%02d.%02d", c.ScopeNumber, c.Number),
-						Name: c.Name,
-						Path: c.Path,
+						Type:       "category",
+						Ref:        fmt.Sprintf("S%02d.%02d", c.ScopeNumber, c.Number),
+						Name:       c.Name,
+						Path:       c.Path,
+						Breadcrumb: categoryBreadcrumb(s, a, c),
 					})
 				}
 				for _, id := range c.IDs {
 					if strings.Contains(strings.ToLower(id.Name), q) {
 						results = append(results, SearchResult{
-							Type: "id",
-							Ref:  fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number),
-							Name: id.Name,
-							Path: id.Path,
+							Type:       "id",
+							Ref:        fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number),
+							Name:       id.Name,
+							Path:       id.Path,
+							Breadcrumb: idBreadcrumb(s, a, c, id),
 						})
 					}
 				}
@@ -226,13 +251,15 @@ func searchContent(scopes []Scope, query string) ([]SearchResult, error) {
 				for _, id := range c.IDs {
 					matches := searchFilesInDir(id.Path, q)
 					ref := fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number)
+					bc := idBreadcrumb(s, a, c, id)
 					for _, m := range matches {
 						results = append(results, SearchResult{
-							Type:      "id",
-							Ref:       ref,
-							Name:      id.Name,
-							Path:      id.Path,
-							MatchLine: m,
+							Type:       "id",
+							Ref:        ref,
+							Name:       id.Name,
+							Path:       id.Path,
+							Breadcrumb: bc,
+							MatchLine:  m,
 						})
 					}
 				}

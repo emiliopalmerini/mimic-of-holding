@@ -103,6 +103,42 @@ func TestAcceptance_Search_NameResultsHaveNoMatchLine(t *testing.T) {
 	}
 }
 
+func TestAcceptance_Search_BreadcrumbAlwaysPopulated(t *testing.T) {
+	root := filepath.Join(testdataDir(t), "vault")
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	results, err := Search(v, "Theatre", SearchOpts{})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	for _, r := range results {
+		if r.Breadcrumb == "" {
+			t.Errorf("Breadcrumb should not be empty for %s %s", r.Type, r.Ref)
+		}
+	}
+}
+
+func TestAcceptance_Search_ContentBreadcrumbHasFullPath(t *testing.T) {
+	root := filepath.Join(testdataDir(t), "vault")
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	results, err := Search(v, "Shakespeare", SearchOpts{Content: true})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	for _, r := range results {
+		if !strings.Contains(r.Breadcrumb, ">") {
+			t.Errorf("Breadcrumb should contain hierarchy separator, got %q", r.Breadcrumb)
+		}
+	}
+}
+
 func TestAcceptance_Search_ScopeFilterExcludesOthers(t *testing.T) {
 	root := filepath.Join(testdataDir(t), "vault")
 	v, err := ParseVault(root)

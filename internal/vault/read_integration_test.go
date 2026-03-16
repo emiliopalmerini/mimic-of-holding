@@ -143,6 +143,68 @@ func TestReadIntegration_FileNotFound(t *testing.T) {
 	}
 }
 
+func TestReadDeepIntegration_Area(t *testing.T) {
+	root := filepath.Join(testdataDir(t), "vault")
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	result, err := ReadDeep(v, "S01.10-19", "")
+	if err != nil {
+		t.Fatalf("ReadDeep: %v", err)
+	}
+
+	if result.Type != "area" {
+		t.Errorf("Type = %q, want area", result.Type)
+	}
+	if len(result.DeepChildren) == 0 {
+		t.Fatal("deep read area should have DeepChildren")
+	}
+	// Should contain categories, which contain IDs
+	foundID := false
+	for _, cat := range result.DeepChildren {
+		if cat.Type != "category" {
+			t.Errorf("area deep child should be category, got %q", cat.Type)
+		}
+		for _, id := range cat.DeepChildren {
+			if id.Type == "id" {
+				foundID = true
+			}
+		}
+	}
+	if !foundID {
+		t.Error("deep read area should contain IDs in nested categories")
+	}
+}
+
+func TestReadDeepIntegration_Category(t *testing.T) {
+	root := filepath.Join(testdataDir(t), "vault")
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	result, err := ReadDeep(v, "S01.11", "")
+	if err != nil {
+		t.Fatalf("ReadDeep: %v", err)
+	}
+
+	if len(result.DeepChildren) == 0 {
+		t.Fatal("deep read category should have DeepChildren")
+	}
+	// Check that IDs have content
+	foundContent := false
+	for _, id := range result.DeepChildren {
+		if id.Content != "" {
+			foundContent = true
+		}
+	}
+	if !foundContent {
+		t.Error("deep read category should include JDex content from IDs")
+	}
+}
+
 func TestReadIntegration_ScopeNotFound(t *testing.T) {
 	root := filepath.Join(testdataDir(t), "vault")
 	v, err := ParseVault(root)

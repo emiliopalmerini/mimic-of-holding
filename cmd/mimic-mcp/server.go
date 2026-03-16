@@ -39,6 +39,7 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithDescription("Read any JD level (scope, area, category, ID) or a specific file within an ID."),
 			mcp.WithString("ref", mcp.Required(), mcp.Description("JD reference (S01, S01.10-19, S01.11, S01.11.11)")),
 			mcp.WithString("file", mcp.Description("Optional filename to read within an ID")),
+			mcp.WithBoolean("deep", mcp.Description("If true, recursively include all descendant content")),
 		),
 		readHandler(vaultRoot),
 	)
@@ -68,6 +69,16 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithString("content", mcp.Required(), mcp.Description("File content")),
 		),
 		writeHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("append",
+			mcp.WithDescription("Append content to a file inside a JD ID folder. Creates the file if it doesn't exist."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
+			mcp.WithString("file", mcp.Required(), mcp.Description("Filename to append to")),
+			mcp.WithString("content", mcp.Required(), mcp.Description("Content to append")),
+		),
+		appendHandler(vaultRoot),
 	)
 
 	s.AddTool(
@@ -124,6 +135,9 @@ func searchHandler(vaultRoot string) server.ToolHandlerFunc {
 		var b strings.Builder
 		for _, r := range results {
 			fmt.Fprintf(&b, "[%s] %s  %s\n", r.Type, r.Ref, r.Name)
+			if r.Breadcrumb != "" {
+				fmt.Fprintf(&b, "  %s\n", r.Breadcrumb)
+			}
 			if r.MatchLine != "" {
 				fmt.Fprintf(&b, "  > %s\n", r.MatchLine)
 			}
@@ -143,28 +157,18 @@ func readHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError("ref is required"), nil
 		}
 		file := request.GetString("file", "")
-		result, err := vault.Read(v, ref, file)
+		deep := request.GetBool("deep", false)
+		var result *vault.ReadResult
+		if deep {
+			result, err = vault.ReadDeep(v, ref, file)
+		} else {
+			result, err = vault.Read(v, ref, file)
+		}
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "# %s %s\n", result.Ref, result.Name)
-		fmt.Fprintf(&b, "Path: %s\n\n", result.Path)
-		if result.Content != "" {
-			fmt.Fprintln(&b, result.Content)
-		}
-		if len(result.Children) > 0 {
-			fmt.Fprintln(&b, "--- Children ---")
-			for _, c := range result.Children {
-				fmt.Fprintf(&b, "  %s\n", c)
-			}
-		}
-		if len(result.Files) > 0 {
-			fmt.Fprintln(&b, "\n--- Files ---")
-			for _, f := range result.Files {
-				fmt.Fprintf(&b, "  %s\n", f)
-			}
-		}
+		renderReadResult(&b, result, 0)
 		return mcp.NewToolResultText(b.String()), nil
 	}
 }
@@ -203,6 +207,45 @@ func archiveHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Archived %s\nNew path: %s", result.Ref, result.NewPath)), nil
+	}
+}
+
+func renderReadResult(b *strings.Builder, result *vault.ReadResult, indent int) {
+	prefix := strings.Repeat("  ", indent)
+	fmt.Fprintf(b, "%s# %s %s\n", prefix, result.Ref, result.Name)
+	if result.Content != "" {
+		fmt.Fprintf(b, "%s%s\n", prefix, result.Content)
+	}
+	if len(result.Children) > 0 && len(result.DeepChildren) == 0 {
+		for _, c := range result.Children {
+			fmt.Fprintf(b, "%s  %s\n", prefix, c)
+		}
+	}
+	if len(result.Files) > 0 {
+		fmt.Fprintf(b, "%sFiles: %s\n", prefix, strings.Join(result.Files, ", "))
+	}
+	for _, child := range result.DeepChildren {
+		renderReadResult(b, &child, indent+1)
+	}
+}
+
+func appendHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		file := request.GetString("file", "")
+		content := request.GetString("content", "")
+		if ref == "" || file == "" {
+			return mcp.NewToolResultError("ref and file are required"), nil
+		}
+		path, err := vault.AppendFile(v, ref, file, content)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Appended to %s", path)), nil
 	}
 }
 

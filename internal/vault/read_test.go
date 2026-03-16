@@ -83,3 +83,16 @@ func TestRead_InvalidRef(t *testing.T) {
 		t.Fatal("expected error for invalid ref")
 	}
 }
+
+func TestRead_DeepIDSameAsRegular(t *testing.T) {
+	result, err := ReadDeep(searchFixture, "S01.11.11", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Type != "id" {
+		t.Errorf("Type = %q, want id", result.Type)
+	}
+	if len(result.DeepChildren) != 0 {
+		t.Error("deep read of ID should not have DeepChildren")
+	}
+}
