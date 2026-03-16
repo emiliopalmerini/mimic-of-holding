@@ -23,6 +23,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newCreateCmd())
 	cmd.AddCommand(newArchiveCmd())
 	cmd.AddCommand(newInboxCmd())
+	cmd.AddCommand(newWriteCmd())
 
 	return cmd
 }

@@ -2,6 +2,7 @@ package vault
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ func TestAcceptance_Search_ResultFields(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	results, err := Search(v, "Theatre")
+	results, err := Search(v, "Theatre", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestAcceptance_Search_JDRefReturnsExactlyOne(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
-			results, err := Search(v, tt.query)
+			results, err := Search(v, tt.query, SearchOpts{})
 			if err != nil {
 				t.Fatalf("Search: %v", err)
 			}
@@ -66,20 +67,20 @@ func TestAcceptance_Search_JDRefReturnsExactlyOne(t *testing.T) {
 	}
 }
 
-func TestAcceptance_Search_ContentResultsHaveMatchLine(t *testing.T) {
+func TestAcceptance_Search_ContentResultsHaveFilenameInMatchLine(t *testing.T) {
 	root := filepath.Join(testdataDir(t), "vault")
 	v, err := ParseVault(root)
 	if err != nil {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	results, err := Search(v, "?Shakespeare")
+	results, err := Search(v, "Shakespeare", SearchOpts{Content: true})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	for _, r := range results {
-		if r.MatchLine == "" {
-			t.Errorf("content search result %+v should have MatchLine", r)
+		if !strings.Contains(r.MatchLine, ".md:") {
+			t.Errorf("content MatchLine should include filename, got %q", r.MatchLine)
 		}
 	}
 }
@@ -91,13 +92,31 @@ func TestAcceptance_Search_NameResultsHaveNoMatchLine(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	results, err := Search(v, "Entertainment")
+	results, err := Search(v, "Entertainment", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	for _, r := range results {
 		if r.MatchLine != "" {
 			t.Errorf("name search result should not have MatchLine, got %q", r.MatchLine)
+		}
+	}
+}
+
+func TestAcceptance_Search_ScopeFilterExcludesOthers(t *testing.T) {
+	root := filepath.Join(testdataDir(t), "vault")
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	results, err := Search(v, "Shakespeare", SearchOpts{Content: true, Scope: "S01"})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	for _, r := range results {
+		if !strings.HasPrefix(r.Ref, "S01") {
+			t.Errorf("scope filter S01 but got result from %s", r.Ref)
 		}
 	}
 }

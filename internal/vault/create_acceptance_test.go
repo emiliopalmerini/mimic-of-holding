@@ -64,7 +64,7 @@ func TestAcceptance_Create_ReparseIncludesNewID(t *testing.T) {
 	}
 
 	// Search for the new ID
-	results, err := Search(v2, result.Ref)
+	results, err := Search(v2, result.Ref, SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}

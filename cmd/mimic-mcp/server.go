@@ -26,16 +26,19 @@ func newServer(vaultRoot string) *server.MCPServer {
 
 	s.AddTool(
 		mcp.NewTool("search",
-			mcp.WithDescription("Search the vault by JD reference (S01.11), name (Entertainment), or content (?pasta recipe)."),
+			mcp.WithDescription("Search the vault by JD reference (S01.11), name (Entertainment), or file content."),
 			mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
+			mcp.WithBoolean("content", mcp.Description("If true, search inside file content instead of names")),
+			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
 		),
 		searchHandler(vaultRoot),
 	)
 
 	s.AddTool(
 		mcp.NewTool("read",
-			mcp.WithDescription("Read a JDex entry and file listing for a JD ID (e.g., S01.11.11)."),
-			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference")),
+			mcp.WithDescription("Read any JD level (scope, area, category, ID) or a specific file within an ID."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD reference (S01, S01.10-19, S01.11, S01.11.11)")),
+			mcp.WithString("file", mcp.Description("Optional filename to read within an ID")),
 		),
 		readHandler(vaultRoot),
 	)
@@ -55,6 +58,16 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithString("ref", mcp.Required(), mcp.Description("JD reference to archive")),
 		),
 		archiveHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("write",
+			mcp.WithDescription("Create or overwrite a file inside a JD ID folder."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
+			mcp.WithString("file", mcp.Required(), mcp.Description("Filename to write")),
+			mcp.WithString("content", mcp.Required(), mcp.Description("File content")),
+		),
+		writeHandler(vaultRoot),
 	)
 
 	s.AddTool(
@@ -97,7 +110,11 @@ func searchHandler(vaultRoot string) server.ToolHandlerFunc {
 		if query == "" {
 			return mcp.NewToolResultError("query is required"), nil
 		}
-		results, err := vault.Search(v, query)
+		opts := vault.SearchOpts{
+			Content: request.GetBool("content", false),
+			Scope:   request.GetString("scope", ""),
+		}
+		results, err := vault.Search(v, query, opts)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -125,17 +142,22 @@ func readHandler(vaultRoot string) server.ToolHandlerFunc {
 		if ref == "" {
 			return mcp.NewToolResultError("ref is required"), nil
 		}
-		result, err := vault.Read(v, ref)
+		file := request.GetString("file", "")
+		result, err := vault.Read(v, ref, file)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "# %s %s\n", result.Ref, result.Name)
 		fmt.Fprintf(&b, "Path: %s\n\n", result.Path)
-		if result.JDex != "" {
-			fmt.Fprintf(&b, "--- JDex ---\n%s\n", result.JDex)
-		} else {
-			fmt.Fprintln(&b, "(no JDex file)")
+		if result.Content != "" {
+			fmt.Fprintln(&b, result.Content)
+		}
+		if len(result.Children) > 0 {
+			fmt.Fprintln(&b, "--- Children ---")
+			for _, c := range result.Children {
+				fmt.Fprintf(&b, "  %s\n", c)
+			}
 		}
 		if len(result.Files) > 0 {
 			fmt.Fprintln(&b, "\n--- Files ---")
@@ -181,6 +203,26 @@ func archiveHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Archived %s\nNew path: %s", result.Ref, result.NewPath)), nil
+	}
+}
+
+func writeHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		file := request.GetString("file", "")
+		content := request.GetString("content", "")
+		if ref == "" || file == "" {
+			return mcp.NewToolResultError("ref and file are required"), nil
+		}
+		path, err := vault.WriteFile(v, ref, file, content)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Written %s", path)), nil
 	}
 }
 

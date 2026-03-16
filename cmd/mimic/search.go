@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/epalmerini/mimic-of-holding/internal/vault"
 	"github.com/spf13/cobra"
@@ -18,7 +19,16 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			results, err := vault.Search(v, args[0])
+			query := args[0]
+			opts := vault.SearchOpts{}
+
+			// CLI uses ? prefix for content search
+			if after, found := strings.CutPrefix(query, "?"); found {
+				query = after
+				opts.Content = true
+			}
+
+			results, err := vault.Search(v, query, opts)
 			if err != nil {
 				return err
 			}

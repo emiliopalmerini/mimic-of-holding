@@ -140,7 +140,7 @@ func TestMCP_SearchByRef(t *testing.T) {
 
 func TestMCP_SearchByContent(t *testing.T) {
 	s := newServer(testdataVault(t))
-	result := callTool(t, s, "search", map[string]any{"query": "?Italian"})
+	result := callTool(t, s, "search", map[string]any{"query": "Italian", "content": true})
 	text := resultText(t, result)
 	if !strings.Contains(text, "Italian") {
 		t.Errorf("expected content match in output:\n%s", text)
@@ -166,11 +166,29 @@ func TestMCP_Read(t *testing.T) {
 	}
 }
 
-func TestMCP_ReadInvalidRef(t *testing.T) {
+func TestMCP_ReadScope(t *testing.T) {
 	s := newServer(testdataVault(t))
 	result := callTool(t, s, "read", map[string]any{"ref": "S01"})
+	text := resultText(t, result)
+	if !strings.Contains(text, "Lifestyle") {
+		t.Errorf("expected area in scope read:\n%s", text)
+	}
+}
+
+func TestMCP_ReadFile(t *testing.T) {
+	s := newServer(testdataVault(t))
+	result := callTool(t, s, "read", map[string]any{"ref": "S01.11.11", "file": "notes.md"})
+	text := resultText(t, result)
+	if !strings.Contains(text, "theatre season") {
+		t.Errorf("expected file content:\n%s", text)
+	}
+}
+
+func TestMCP_ReadInvalidRef(t *testing.T) {
+	s := newServer(testdataVault(t))
+	result := callTool(t, s, "read", map[string]any{"ref": "xyz"})
 	if !result.IsError {
-		t.Fatal("expected error for non-ID ref")
+		t.Fatal("expected error for invalid ref")
 	}
 }
 

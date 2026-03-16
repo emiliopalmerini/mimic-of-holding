@@ -42,14 +42,14 @@ var searchFixture = &Vault{
 }
 
 func TestSearch_EmptyQuery(t *testing.T) {
-	_, err := Search(searchFixture, "")
+	_, err := Search(searchFixture, "", SearchOpts{})
 	if err == nil {
 		t.Fatal("expected error for empty query")
 	}
 }
 
 func TestSearch_JDRefScope(t *testing.T) {
-	results, err := Search(searchFixture, "S01")
+	results, err := Search(searchFixture, "S01", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestSearch_JDRefScope(t *testing.T) {
 }
 
 func TestSearch_JDRefCategory(t *testing.T) {
-	results, err := Search(searchFixture, "S01.11")
+	results, err := Search(searchFixture, "S01.11", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestSearch_JDRefCategory(t *testing.T) {
 }
 
 func TestSearch_JDRefID(t *testing.T) {
-	results, err := Search(searchFixture, "S01.11.11")
+	results, err := Search(searchFixture, "S01.11.11", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestSearch_JDRefID(t *testing.T) {
 }
 
 func TestSearch_JDRefNoMatch(t *testing.T) {
-	results, err := Search(searchFixture, "S99")
+	results, err := Search(searchFixture, "S99", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestSearch_JDRefNoMatch(t *testing.T) {
 }
 
 func TestSearch_NameExact(t *testing.T) {
-	results, err := Search(searchFixture, "Entertainment")
+	results, err := Search(searchFixture, "Entertainment", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,12 +114,10 @@ func TestSearch_NameExact(t *testing.T) {
 }
 
 func TestSearch_NameCaseInsensitive(t *testing.T) {
-	results, err := Search(searchFixture, "management")
+	results, err := Search(searchFixture, "management", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Should match area "Management for S01" and category "Inbox for S01.00-09" (contains "management" nowhere),
-	// but specifically area name and possibly others with "Management" in name
 	found := false
 	for _, r := range results {
 		if r.Type == "area" && r.Ref == "S01.00-09" {
@@ -132,8 +130,7 @@ func TestSearch_NameCaseInsensitive(t *testing.T) {
 }
 
 func TestSearch_NameMultipleLevels(t *testing.T) {
-	// "Draghi" appears in scope name "Due Draghi" and area name "Due Draghi al Microfono"
-	results, err := Search(searchFixture, "Draghi")
+	results, err := Search(searchFixture, "Draghi", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -147,7 +144,7 @@ func TestSearch_NameMultipleLevels(t *testing.T) {
 }
 
 func TestSearch_NameNoMatch(t *testing.T) {
-	results, err := Search(searchFixture, "nonexistent")
+	results, err := Search(searchFixture, "nonexistent", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +154,7 @@ func TestSearch_NameNoMatch(t *testing.T) {
 }
 
 func TestSearch_NameDoesNotIncludeMatchLine(t *testing.T) {
-	results, err := Search(searchFixture, "Entertainment")
+	results, err := Search(searchFixture, "Entertainment", SearchOpts{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -165,5 +162,34 @@ func TestSearch_NameDoesNotIncludeMatchLine(t *testing.T) {
 		if r.MatchLine != "" {
 			t.Errorf("name search should not set MatchLine, got %q", r.MatchLine)
 		}
+	}
+}
+
+func TestSearch_ScopeFilter(t *testing.T) {
+	results, err := Search(searchFixture, "Draghi", SearchOpts{Scope: "S02"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, r := range results {
+		if r.Ref[:3] != "S02" {
+			t.Errorf("scope filter S02 but got result from %s", r.Ref)
+		}
+	}
+}
+
+func TestSearch_ScopeFilterNoMatch(t *testing.T) {
+	results, err := Search(searchFixture, "Entertainment", SearchOpts{Scope: "S02"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results with scope filter S02, got %d", len(results))
+	}
+}
+
+func TestSearch_InvalidScopeFilter(t *testing.T) {
+	_, err := Search(searchFixture, "test", SearchOpts{Scope: "xyz"})
+	if err == nil {
+		t.Fatal("expected error for invalid scope filter")
 	}
 }

@@ -9,26 +9,34 @@ import (
 
 func newReadCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "read <id>",
-		Short: "Read a JDex entry",
-		Long:  "Display the JDex entry and file listing for a JD ID (e.g., S01.11.11).",
-		Args:  cobra.ExactArgs(1),
+		Use:   "read <ref> [file]",
+		Short: "Read any JD level or a file within an ID",
+		Long:  "Read a scope (S01), area (S01.10-19), category (S01.11), ID (S01.11.11), or a specific file within an ID.",
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := parseVault()
 			if err != nil {
 				return err
 			}
-			result, err := vault.Read(v, args[0])
+			file := ""
+			if len(args) == 2 {
+				file = args[1]
+			}
+			result, err := vault.Read(v, args[0], file)
 			if err != nil {
 				return err
 			}
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "# %s %s\n", result.Ref, result.Name)
 			fmt.Fprintf(w, "Path: %s\n\n", result.Path)
-			if result.JDex != "" {
-				fmt.Fprintf(w, "--- JDex ---\n%s\n", result.JDex)
-			} else {
-				fmt.Fprintln(w, "(no JDex file)")
+			if result.Content != "" {
+				fmt.Fprintln(w, result.Content)
+			}
+			if len(result.Children) > 0 {
+				fmt.Fprintln(w, "--- Children ---")
+				for _, c := range result.Children {
+					fmt.Fprintf(w, "  %s\n", c)
+				}
 			}
 			if len(result.Files) > 0 {
 				fmt.Fprintln(w, "\n--- Files ---")

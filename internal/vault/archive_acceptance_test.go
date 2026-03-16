@@ -24,7 +24,7 @@ func TestAcceptance_Archive_IDNoLongerInTree(t *testing.T) {
 		t.Fatalf("re-ParseVault: %v", err)
 	}
 
-	results, err := Search(v2, "S01.11.11")
+	results, err := Search(v2, "S01.11.11", SearchOpts{})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}

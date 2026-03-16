@@ -16,7 +16,13 @@ type SearchResult struct {
 	Ref       string // "S01", "S01.10-19", "S01.11", "S01.11.11"
 	Name      string
 	Path      string
-	MatchLine string // non-empty only for content matches
+	MatchLine string // non-empty only for content matches, format: "filename: line"
+}
+
+// SearchOpts configures search behavior.
+type SearchOpts struct {
+	Content bool   // if true, search file content instead of names
+	Scope   string // optional scope filter (e.g., "S01")
 }
 
 var (
@@ -26,24 +32,48 @@ var (
 	searchIDRe       = regexp.MustCompile(`^S(\d{2})\.(\d{2})\.(\d{2})$`)
 )
 
+const maxLinesPerFile = 3
+
 // Search finds items in the vault matching the given query.
-func Search(v *Vault, query string) ([]SearchResult, error) {
+func Search(v *Vault, query string, opts SearchOpts) ([]SearchResult, error) {
 	if query == "" {
 		return nil, fmt.Errorf("empty search query")
 	}
 
-	// Content search
-	if strings.HasPrefix(query, "?") {
-		return searchContent(v, strings.TrimPrefix(query, "?"))
+	// Validate scope filter
+	scopes, err := filterScopes(v, opts.Scope)
+	if err != nil {
+		return nil, err
 	}
 
-	// JD reference search
+	if opts.Content {
+		return searchContent(scopes, query)
+	}
+
+	// JD reference search (not affected by scope filter — exact match)
 	if results, ok := searchByRef(v, query); ok {
 		return results, nil
 	}
 
-	// Name search
-	return searchByName(v, query), nil
+	// Name search (affected by scope filter)
+	return searchByName(scopes, query), nil
+}
+
+func filterScopes(v *Vault, scope string) ([]Scope, error) {
+	if scope == "" {
+		return v.Scopes, nil
+	}
+	m := filterScopeRe.FindStringSubmatch(scope)
+	if m == nil {
+		return nil, fmt.Errorf("invalid scope filter: %q", scope)
+	}
+	num, _ := strconv.Atoi(m[1])
+	for _, s := range v.Scopes {
+		if s.Number == num {
+			return []Scope{s}, nil
+		}
+	}
+	return nil, fmt.Errorf("scope S%02d not found", num)
 }
 
 func searchByRef(v *Vault, query string) ([]SearchResult, bool) {
@@ -138,11 +168,11 @@ func searchByRef(v *Vault, query string) ([]SearchResult, bool) {
 	return nil, false
 }
 
-func searchByName(v *Vault, query string) []SearchResult {
+func searchByName(scopes []Scope, query string) []SearchResult {
 	q := strings.ToLower(query)
 	var results []SearchResult
 
-	for _, s := range v.Scopes {
+	for _, s := range scopes {
 		if strings.Contains(strings.ToLower(s.Name), q) {
 			results = append(results, SearchResult{
 				Type: "scope",
@@ -186,22 +216,23 @@ func searchByName(v *Vault, query string) []SearchResult {
 	return results
 }
 
-func searchContent(v *Vault, query string) ([]SearchResult, error) {
+func searchContent(scopes []Scope, query string) ([]SearchResult, error) {
 	q := strings.ToLower(query)
 	var results []SearchResult
 
-	for _, s := range v.Scopes {
+	for _, s := range scopes {
 		for _, a := range s.Areas {
 			for _, c := range a.Categories {
 				for _, id := range c.IDs {
 					matches := searchFilesInDir(id.Path, q)
-					for _, matchLine := range matches {
+					ref := fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number)
+					for _, m := range matches {
 						results = append(results, SearchResult{
 							Type:      "id",
-							Ref:       fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number),
+							Ref:       ref,
 							Name:      id.Name,
 							Path:      id.Path,
-							MatchLine: matchLine,
+							MatchLine: m,
 						})
 					}
 				}
@@ -222,7 +253,10 @@ func searchFilesInDir(dir, query string) []string {
 
 	for _, path := range mdFiles {
 		lines := searchFileContent(path, query)
-		matches = append(matches, lines...)
+		filename := filepath.Base(path)
+		for _, line := range lines {
+			matches = append(matches, fmt.Sprintf("%s: %s", filename, line))
+		}
 	}
 
 	return matches
@@ -241,6 +275,9 @@ func searchFileContent(path, query string) []string {
 		line := scanner.Text()
 		if strings.Contains(strings.ToLower(line), query) {
 			matches = append(matches, strings.TrimSpace(line))
+			if len(matches) >= maxLinesPerFile {
+				break
+			}
 		}
 	}
 

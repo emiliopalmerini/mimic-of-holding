@@ -109,10 +109,23 @@ func TestCmd_Read(t *testing.T) {
 	}
 }
 
-func TestCmd_ReadNonID(t *testing.T) {
-	_, _, err := executeCmd(t, "read", "S01", "--vault", testdataVault(t))
-	if err == nil {
-		t.Fatal("expected error for non-ID ref")
+func TestCmd_ReadScope(t *testing.T) {
+	out, _, err := executeCmd(t, "read", "S01", "--vault", testdataVault(t))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Lifestyle") {
+		t.Errorf("expected area name in scope read:\n%s", out)
+	}
+}
+
+func TestCmd_ReadFile(t *testing.T) {
+	out, _, err := executeCmd(t, "read", "S01.11.11", "notes.md", "--vault", testdataVault(t))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "theatre season") {
+		t.Errorf("expected file content in output:\n%s", out)
 	}
 }
 
