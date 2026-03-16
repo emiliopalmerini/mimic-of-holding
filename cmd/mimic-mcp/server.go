@@ -1,0 +1,215 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/epalmerini/mimic-of-holding/internal/vault"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+)
+
+func newServer(vaultRoot string) *server.MCPServer {
+	s := server.NewMCPServer(
+		"mimic-of-holding",
+		"0.1.0",
+	)
+
+	s.AddTool(
+		mcp.NewTool("browse",
+			mcp.WithDescription("Display the vault tree. Optional filter: scope (S01), area (S01.10-19), or category (S01.11)."),
+			mcp.WithString("filter", mcp.Description("Optional filter")),
+		),
+		browseHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("search",
+			mcp.WithDescription("Search the vault by JD reference (S01.11), name (Entertainment), or content (?pasta recipe)."),
+			mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
+		),
+		searchHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("read",
+			mcp.WithDescription("Read a JDex entry and file listing for a JD ID (e.g., S01.11.11)."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference")),
+		),
+		readHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("create",
+			mcp.WithDescription("Create a new JD ID in the given category."),
+			mcp.WithString("category", mcp.Required(), mcp.Description("Category reference (e.g., S01.11)")),
+			mcp.WithString("name", mcp.Required(), mcp.Description("Name for the new ID")),
+		),
+		createHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("archive",
+			mcp.WithDescription("Archive a JD ID or category to its parent's archive folder."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD reference to archive")),
+		),
+		archiveHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("inbox",
+			mcp.WithDescription("List files in inbox folders across the vault."),
+			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
+		),
+		inboxHandler(vaultRoot),
+	)
+
+	return s
+}
+
+func parseVaultForMCP(root string) (*vault.Vault, error) {
+	return vault.ParseVault(root)
+}
+
+func browseHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		filter := request.GetString("filter", "")
+		out, err := vault.Browse(v, filter)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(out), nil
+	}
+}
+
+func searchHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		query := request.GetString("query", "")
+		if query == "" {
+			return mcp.NewToolResultError("query is required"), nil
+		}
+		results, err := vault.Search(v, query)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if len(results) == 0 {
+			return mcp.NewToolResultText("No results found."), nil
+		}
+		var b strings.Builder
+		for _, r := range results {
+			fmt.Fprintf(&b, "[%s] %s  %s\n", r.Type, r.Ref, r.Name)
+			if r.MatchLine != "" {
+				fmt.Fprintf(&b, "  > %s\n", r.MatchLine)
+			}
+		}
+		return mcp.NewToolResultText(b.String()), nil
+	}
+}
+
+func readHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		if ref == "" {
+			return mcp.NewToolResultError("ref is required"), nil
+		}
+		result, err := vault.Read(v, ref)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "# %s %s\n", result.Ref, result.Name)
+		fmt.Fprintf(&b, "Path: %s\n\n", result.Path)
+		if result.JDex != "" {
+			fmt.Fprintf(&b, "--- JDex ---\n%s\n", result.JDex)
+		} else {
+			fmt.Fprintln(&b, "(no JDex file)")
+		}
+		if len(result.Files) > 0 {
+			fmt.Fprintln(&b, "\n--- Files ---")
+			for _, f := range result.Files {
+				fmt.Fprintf(&b, "  %s\n", f)
+			}
+		}
+		return mcp.NewToolResultText(b.String()), nil
+	}
+}
+
+func createHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		category := request.GetString("category", "")
+		name := request.GetString("name", "")
+		if category == "" || name == "" {
+			return mcp.NewToolResultError("category and name are required"), nil
+		}
+		result, err := vault.Create(v, category, name)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Created %s %s\nPath: %s", result.Ref, result.Name, result.Path)), nil
+	}
+}
+
+func archiveHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		if ref == "" {
+			return mcp.NewToolResultError("ref is required"), nil
+		}
+		result, err := vault.Archive(v, ref)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Archived %s\nNew path: %s", result.Ref, result.NewPath)), nil
+	}
+}
+
+func inboxHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		scope := request.GetString("scope", "")
+		items, err := vault.Inbox(v, scope)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if len(items) == 0 {
+			return mcp.NewToolResultText("All inboxes are empty."), nil
+		}
+		var b strings.Builder
+		currentRef := ""
+		for _, item := range items {
+			if item.InboxRef != currentRef {
+				if currentRef != "" {
+					fmt.Fprintln(&b)
+				}
+				fmt.Fprintf(&b, "%s (%s)\n", item.InboxRef, item.InboxName)
+				currentRef = item.InboxRef
+			}
+			fmt.Fprintf(&b, "  %s\n", item.File)
+		}
+		return mcp.NewToolResultText(b.String()), nil
+	}
+}
