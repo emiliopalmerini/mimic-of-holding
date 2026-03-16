@@ -309,24 +309,27 @@ func searchMeta(scopes []Scope, query string) ([]SearchResult, error) {
 		for _, a := range s.Areas {
 			for _, c := range a.Categories {
 				for _, id := range c.IDs {
-					// JDex file is named after the folder
-					folderName := filepath.Base(id.Path)
-					jdexPath := filepath.Join(id.Path, folderName+".md")
-
-					matchLine := searchFrontmatter(jdexPath, key, value)
-					if matchLine == "" {
-						continue
-					}
-
 					ref := fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number)
-					results = append(results, SearchResult{
-						Type:       "id",
-						Ref:        ref,
-						Name:       id.Name,
-						Path:       id.Path,
-						Breadcrumb: idBreadcrumb(s, a, c, id),
-						MatchLine:  matchLine,
-					})
+					bc := idBreadcrumb(s, a, c, id)
+
+					// Scan all .md files in the ID folder
+					mdFiles, _ := filepath.Glob(filepath.Join(id.Path, "*.md"))
+					for _, mdFile := range mdFiles {
+						matchLine := searchFrontmatter(mdFile, key, value)
+						if matchLine == "" {
+							continue
+						}
+						filename := filepath.Base(mdFile)
+						results = append(results, SearchResult{
+							Type:       "id",
+							Ref:        ref,
+							Name:       id.Name,
+							Path:       id.Path,
+							Breadcrumb: bc,
+							MatchLine:  fmt.Sprintf("%s: %s", filename, matchLine),
+						})
+						break // one match per ID is enough
+					}
 				}
 			}
 		}
