@@ -82,6 +82,34 @@ func newServer(vaultRoot string) *server.MCPServer {
 	)
 
 	s.AddTool(
+		mcp.NewTool("rename",
+			mcp.WithDescription("Rename a JD item (scope, area, category, or ID). Updates wiki links across the vault."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD reference to rename")),
+			mcp.WithString("name", mcp.Required(), mcp.Description("New human-readable name")),
+		),
+		renameHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("move",
+			mcp.WithDescription("Move a JD item to a different parent. Move an ID to a category, or a category to an area. Updates wiki links."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD reference to move")),
+			mcp.WithString("to", mcp.Required(), mcp.Description("Target parent reference")),
+		),
+		moveHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("move_file",
+			mcp.WithDescription("Move a file from one JD ID to another."),
+			mcp.WithString("from", mcp.Required(), mcp.Description("Source JD ID reference")),
+			mcp.WithString("file", mcp.Required(), mcp.Description("Filename to move")),
+			mcp.WithString("to", mcp.Required(), mcp.Description("Target JD ID reference")),
+		),
+		moveFileHandler(vaultRoot),
+	)
+
+	s.AddTool(
 		mcp.NewTool("inbox",
 			mcp.WithDescription("List files in inbox folders across the vault."),
 			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
@@ -266,6 +294,72 @@ func writeHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Written %s", path)), nil
+	}
+}
+
+func renameHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		name := request.GetString("name", "")
+		if ref == "" || name == "" {
+			return mcp.NewToolResultError("ref and name are required"), nil
+		}
+		result, err := vault.Rename(v, ref, name)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		text := fmt.Sprintf("Renamed %s: %q → %q\nPath: %s", result.Ref, result.OldName, result.NewName, result.NewPath)
+		if result.LinksUpdated > 0 {
+			text += fmt.Sprintf("\nUpdated %d wiki links", result.LinksUpdated)
+		}
+		return mcp.NewToolResultText(text), nil
+	}
+}
+
+func moveHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		to := request.GetString("to", "")
+		if ref == "" || to == "" {
+			return mcp.NewToolResultError("ref and to are required"), nil
+		}
+		result, err := vault.Move(v, ref, to)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		text := fmt.Sprintf("Moved %s → %s\nPath: %s", result.OldRef, result.NewRef, result.NewPath)
+		if result.LinksUpdated > 0 {
+			text += fmt.Sprintf("\nUpdated %d wiki links", result.LinksUpdated)
+		}
+		return mcp.NewToolResultText(text), nil
+	}
+}
+
+func moveFileHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		from := request.GetString("from", "")
+		file := request.GetString("file", "")
+		to := request.GetString("to", "")
+		if from == "" || file == "" || to == "" {
+			return mcp.NewToolResultError("from, file, and to are required"), nil
+		}
+		path, err := vault.MoveFile(v, from, file, to)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Moved to %s", path)), nil
 	}
 }
 

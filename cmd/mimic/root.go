@@ -25,6 +25,9 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newInboxCmd())
 	cmd.AddCommand(newWriteCmd())
 	cmd.AddCommand(newAppendCmd())
+	cmd.AddCommand(newRenameCmd())
+	cmd.AddCommand(newMoveCmd())
+	cmd.AddCommand(newMoveFileCmd())
 
 	return cmd
 }
