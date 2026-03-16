@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/epalmerini/mimic-of-holding/internal/vault"
@@ -26,10 +27,12 @@ func newServer(vaultRoot string) *server.MCPServer {
 
 	s.AddTool(
 		mcp.NewTool("search",
-			mcp.WithDescription("Search the vault by JD reference (S01.11), name (Entertainment), or file content."),
+			mcp.WithDescription("Search the vault by JD reference (S01.11), name (Entertainment), file content, backlinks, or tags."),
 			mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
 			mcp.WithBoolean("content", mcp.Description("If true, search inside file content instead of names")),
 			mcp.WithBoolean("meta", mcp.Description("If true, query is key:value format for YAML frontmatter search")),
+			mcp.WithBoolean("backlinks", mcp.Description("If true, query is a JD ID ref; returns notes that link to it")),
+			mcp.WithBoolean("tags", mcp.Description("If true, list all tags (empty/whitespace query) or find notes by tag (query = tag name)")),
 			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
 		),
 		searchHandler(vaultRoot),
@@ -111,6 +114,34 @@ func newServer(vaultRoot string) *server.MCPServer {
 	)
 
 	s.AddTool(
+		mcp.NewTool("frontmatter",
+			mcp.WithDescription("Edit YAML frontmatter fields. Actions: 'set' (scalar), 'add' (append to list), 'remove' (remove from list)."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
+			mcp.WithString("file", mcp.Required(), mcp.Description("Filename within the ID folder")),
+			mcp.WithString("action", mcp.Required(), mcp.Description("Action: set, add, or remove")),
+			mcp.WithString("key", mcp.Required(), mcp.Description("Frontmatter field name")),
+			mcp.WithString("value", mcp.Required(), mcp.Description("Value to set, add, or remove")),
+		),
+		frontmatterHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("stats",
+			mcp.WithDescription("Show vault statistics: totals, empty categories, orphan notes (no inbound links), and largest categories."),
+		),
+		statsHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("recent",
+			mcp.WithDescription("List the most recently modified files in the vault."),
+			mcp.WithNumber("limit", mcp.Description("Max results to return (default 10)")),
+			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
+		),
+		recentHandler(vaultRoot),
+	)
+
+	s.AddTool(
 		mcp.NewTool("inbox",
 			mcp.WithDescription("List files in inbox folders across the vault."),
 			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
@@ -151,9 +182,11 @@ func searchHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError("query is required"), nil
 		}
 		opts := vault.SearchOpts{
-			Content: request.GetBool("content", false),
-			Meta:    request.GetBool("meta", false),
-			Scope:   request.GetString("scope", ""),
+			Content:   request.GetBool("content", false),
+			Meta:      request.GetBool("meta", false),
+			Backlinks: request.GetBool("backlinks", false),
+			Tags:      request.GetBool("tags", false),
+			Scope:     request.GetString("scope", ""),
 		}
 		results, err := vault.Search(v, query, opts)
 		if err != nil {
@@ -362,6 +395,104 @@ func moveFileHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Moved to %s", path)), nil
+	}
+}
+
+func frontmatterHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		file := request.GetString("file", "")
+		action := request.GetString("action", "")
+		key := request.GetString("key", "")
+		value := request.GetString("value", "")
+		if ref == "" || file == "" || action == "" || key == "" {
+			return mcp.NewToolResultError("ref, file, action, and key are required"), nil
+		}
+
+		var path string
+		switch action {
+		case "set":
+			path, err = vault.SetFrontmatter(v, ref, file, key, value)
+		case "add":
+			path, err = vault.AddToFrontmatterList(v, ref, file, key, value)
+		case "remove":
+			path, err = vault.RemoveFromFrontmatterList(v, ref, file, key, value)
+		default:
+			return mcp.NewToolResultError(fmt.Sprintf("unknown action %q (use set, add, or remove)", action)), nil
+		}
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Updated frontmatter in %s", path)), nil
+	}
+}
+
+func statsHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		stats, err := vault.Stats(v)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Scopes: %d  Areas: %d  Categories: %d  IDs: %d  Files: %d\n",
+			stats.TotalScopes, stats.TotalAreas, stats.TotalCategories, stats.TotalIDs, stats.TotalFiles)
+		if len(stats.EmptyCategories) > 0 {
+			fmt.Fprintf(&b, "\nEmpty categories:\n")
+			for _, ref := range stats.EmptyCategories {
+				fmt.Fprintf(&b, "  %s\n", ref)
+			}
+		}
+		if len(stats.OrphanIDs) > 0 {
+			fmt.Fprintf(&b, "\nOrphan IDs (no inbound links):\n")
+			for _, ref := range stats.OrphanIDs {
+				fmt.Fprintf(&b, "  %s\n", ref)
+			}
+		}
+		if len(stats.LargestCategories) > 0 {
+			fmt.Fprintf(&b, "\nLargest categories:\n")
+			for _, cs := range stats.LargestCategories {
+				fmt.Fprintf(&b, "  %s %s (%d IDs)\n", cs.Ref, cs.Name, cs.Count)
+			}
+		}
+		return mcp.NewToolResultText(b.String()), nil
+	}
+}
+
+func recentHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		limitStr := request.GetString("limit", "")
+		limit := 10
+		if limitStr != "" {
+			if n, err := strconv.Atoi(limitStr); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		scope := request.GetString("scope", "")
+		results, err := vault.Recent(v, limit, scope)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if len(results) == 0 {
+			return mcp.NewToolResultText("No recent files found."), nil
+		}
+		var b strings.Builder
+		for _, r := range results {
+			fmt.Fprintf(&b, "[%s] %s  %s\n", r.Ref, r.File, r.ModTime.Format("2006-01-02 15:04"))
+			fmt.Fprintf(&b, "  %s\n", r.Breadcrumb)
+		}
+		return mcp.NewToolResultText(b.String()), nil
 	}
 }
 

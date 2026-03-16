@@ -10,7 +10,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        version = "0.1.0";
+        version = "0.2.0";
         src = ./.;
         vendorHash = "sha256-fM19kutxYJBJXs+nfBX49p+HL4cY/Mvxw6heE9Hzjxc=";
       in
