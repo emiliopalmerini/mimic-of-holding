@@ -29,6 +29,7 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithDescription("Search the vault by JD reference (S01.11), name (Entertainment), or file content."),
 			mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
 			mcp.WithBoolean("content", mcp.Description("If true, search inside file content instead of names")),
+			mcp.WithBoolean("meta", mcp.Description("If true, query is key:value format for YAML frontmatter search")),
 			mcp.WithString("scope", mcp.Description("Optional scope filter (e.g., S01)")),
 		),
 		searchHandler(vaultRoot),
@@ -151,6 +152,7 @@ func searchHandler(vaultRoot string) server.ToolHandlerFunc {
 		}
 		opts := vault.SearchOpts{
 			Content: request.GetBool("content", false),
+			Meta:    request.GetBool("meta", false),
 			Scope:   request.GetString("scope", ""),
 		}
 		results, err := vault.Search(v, query, opts)
@@ -387,7 +389,11 @@ func inboxHandler(vaultRoot string) server.ToolHandlerFunc {
 				fmt.Fprintf(&b, "%s (%s)\n", item.InboxRef, item.InboxName)
 				currentRef = item.InboxRef
 			}
-			fmt.Fprintf(&b, "  %s\n", item.File)
+			fmt.Fprintf(&b, "  %s", item.File)
+			if item.Preview != "" {
+				fmt.Fprintf(&b, "  — %s", item.Preview)
+			}
+			fmt.Fprintln(&b)
 		}
 		return mcp.NewToolResultText(b.String()), nil
 	}

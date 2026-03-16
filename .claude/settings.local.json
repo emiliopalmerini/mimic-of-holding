@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mimic-of-holding__read",
+      "mcp__mimic-of-holding__browse",
+      "mcp__mimic-of-holding__search"
+    ]
+  }
+}

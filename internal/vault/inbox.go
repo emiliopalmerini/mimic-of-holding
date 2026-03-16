@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ type InboxItem struct {
 	InboxRef  string // "S01.11.01"
 	InboxName string // "Inbox for S01.11"
 	File      string // filename
+	Preview   string // first 3 non-empty body lines, joined with " | "
 }
 
 // Inbox lists all files in inbox folders, optionally filtered by scope.
@@ -37,10 +39,12 @@ func Inbox(v *Vault, scopeFilter string) ([]InboxItem, error) {
 					}
 					ref := fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number)
 					for _, f := range files {
+						preview := filePreview(filepath.Join(id.Path, f), 3)
 						items = append(items, InboxItem{
 							InboxRef:  ref,
 							InboxName: id.Name,
 							File:      f,
+							Preview:   preview,
 						})
 					}
 				}
@@ -69,6 +73,47 @@ func resolveScopes(v *Vault, scopeFilter string) ([]Scope, error) {
 	}
 
 	return nil, fmt.Errorf("scope S%02d not found", num)
+}
+
+// filePreview returns the first n non-empty body lines of a markdown file,
+// skipping YAML frontmatter. Lines are joined with " | ".
+func filePreview(path string, n int) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	inFrontmatter := false
+	frontmatterSeen := false
+	var lines []string
+
+	for scanner.Scan() && len(lines) < n {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Handle YAML frontmatter
+		if line == "---" {
+			if !frontmatterSeen {
+				inFrontmatter = true
+				frontmatterSeen = true
+				continue
+			}
+			if inFrontmatter {
+				inFrontmatter = false
+				continue
+			}
+		}
+		if inFrontmatter {
+			continue
+		}
+
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	return strings.Join(lines, " | ")
 }
 
 func listInboxFiles(id ID) ([]string, error) {

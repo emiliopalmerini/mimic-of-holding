@@ -24,6 +24,7 @@ type SearchResult struct {
 type SearchOpts struct {
 	Content bool   // if true, search file content instead of names
 	Scope   string // optional scope filter (e.g., "S01")
+	Meta    bool   // if true, query is "key:value" format for frontmatter search
 }
 
 var (
@@ -61,6 +62,10 @@ func Search(v *Vault, query string, opts SearchOpts) ([]SearchResult, error) {
 	scopes, err := filterScopes(v, opts.Scope)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.Meta {
+		return searchMeta(scopes, query)
 	}
 
 	if opts.Content {
@@ -287,6 +292,95 @@ func searchFilesInDir(dir, query string) []string {
 	}
 
 	return matches
+}
+
+func searchMeta(scopes []Scope, query string) ([]SearchResult, error) {
+	// Parse key:value
+	parts := strings.SplitN(query, ":", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return nil, fmt.Errorf("meta query must be 'key:value' format, got %q", query)
+	}
+	key := strings.ToLower(strings.TrimSpace(parts[0]))
+	value := strings.ToLower(strings.TrimSpace(parts[1]))
+
+	var results []SearchResult
+
+	for _, s := range scopes {
+		for _, a := range s.Areas {
+			for _, c := range a.Categories {
+				for _, id := range c.IDs {
+					// JDex file is named after the folder
+					folderName := filepath.Base(id.Path)
+					jdexPath := filepath.Join(id.Path, folderName+".md")
+
+					matchLine := searchFrontmatter(jdexPath, key, value)
+					if matchLine == "" {
+						continue
+					}
+
+					ref := fmt.Sprintf("S%02d.%02d.%02d", id.ScopeNumber, id.CategoryNum, id.Number)
+					results = append(results, SearchResult{
+						Type:       "id",
+						Ref:        ref,
+						Name:       id.Name,
+						Path:       id.Path,
+						Breadcrumb: idBreadcrumb(s, a, c, id),
+						MatchLine:  matchLine,
+					})
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
+// searchFrontmatter reads YAML frontmatter from a file and checks if a key contains the value.
+// Returns the matching "key: value" line, or empty string.
+func searchFrontmatter(path, key, value string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	inFrontmatter := false
+	currentKey := ""
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "---" {
+			if !inFrontmatter {
+				inFrontmatter = true
+				continue
+			}
+			break // end of frontmatter
+		}
+		if !inFrontmatter {
+			continue
+		}
+
+		// Check if this is a key line (not indented list item)
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") && strings.Contains(line, ":") {
+			parts := strings.SplitN(trimmed, ":", 2)
+			currentKey = strings.ToLower(strings.TrimSpace(parts[0]))
+			val := strings.TrimSpace(parts[1])
+			if currentKey == key && val != "" && strings.Contains(strings.ToLower(val), value) {
+				return trimmed
+			}
+		} else if strings.HasPrefix(trimmed, "- ") && currentKey == key {
+			// List item under the current key
+			listVal := strings.TrimPrefix(trimmed, "- ")
+			if strings.Contains(strings.ToLower(listVal), value) {
+				return fmt.Sprintf("%s: %s", key, listVal)
+			}
+		}
+	}
+
+	return ""
 }
 
 func searchFileContent(path, query string) []string {

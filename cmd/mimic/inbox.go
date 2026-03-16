@@ -40,7 +40,11 @@ func newInboxCmd() *cobra.Command {
 					fmt.Fprintf(w, "%s (%s)\n", item.InboxRef, item.InboxName)
 					currentRef = item.InboxRef
 				}
+				if item.Preview != "" {
+				fmt.Fprintf(w, "  %s  — %s\n", item.File, item.Preview)
+			} else {
 				fmt.Fprintf(w, "  %s\n", item.File)
+			}
 			}
 			return nil
 		},
