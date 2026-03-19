@@ -76,6 +76,17 @@ func newServer(vaultRoot string) *server.MCPServer {
 	)
 
 	s.AddTool(
+		mcp.NewTool("edit",
+			mcp.WithDescription("Search-and-replace edit of a file inside a JD ID folder. old_string must appear exactly once."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
+			mcp.WithString("file", mcp.Required(), mcp.Description("Filename to edit")),
+			mcp.WithString("old_string", mcp.Required(), mcp.Description("Exact text to find (must be unique in file)")),
+			mcp.WithString("new_string", mcp.Required(), mcp.Description("Replacement text")),
+		),
+		editHandler(vaultRoot),
+	)
+
+	s.AddTool(
 		mcp.NewTool("append",
 			mcp.WithDescription("Append content to a file inside a JD ID folder. Creates the file if it doesn't exist."),
 			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
@@ -329,6 +340,27 @@ func writeHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Written %s", path)), nil
+	}
+}
+
+func editHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		file := request.GetString("file", "")
+		oldString := request.GetString("old_string", "")
+		newString := request.GetString("new_string", "")
+		if ref == "" || file == "" || oldString == "" {
+			return mcp.NewToolResultError("ref, file, and old_string are required"), nil
+		}
+		path, err := vault.EditFile(v, ref, file, oldString, newString)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Edited %s", path)), nil
 	}
 }
 
