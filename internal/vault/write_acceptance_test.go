@@ -13,7 +13,7 @@ func TestAcceptance_WriteFile_ReadableViaRead(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = WriteFile(v, "S01.11.11", "review.md", "# Review\n\nGreat show.")
+	_, err = WriteFile(v, "S01.11.11", "review.md", "# Review\n\nGreat show.", "")
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestAcceptance_WriteFile_AppearsInFileListing(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = WriteFile(v, "S01.11.11", "checklist.md", "- [ ] Buy tickets")
+	_, err = WriteFile(v, "S01.11.11", "checklist.md", "- [ ] Buy tickets", "")
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

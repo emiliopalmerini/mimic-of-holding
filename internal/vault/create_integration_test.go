@@ -42,7 +42,7 @@ func TestCreateIntegration_WithExistingIDs(t *testing.T) {
 	}
 
 	// S01.11 has IDs .01 (system) and .11 (regular) → next should be .12
-	result, err := Create(v, "S01.11", "Cinema")
+	result, err := Create(v, "S01.11", "Cinema", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestCreateIntegration_EmptyCategory(t *testing.T) {
 	}
 
 	// S01.12 Food has no IDs → first should be .11
-	result, err := Create(v, "S01.12", "Pasta Recipes")
+	result, err := Create(v, "S01.12", "Pasta Recipes", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestCreateIntegration_OnlySystemIDs(t *testing.T) {
 	}
 
 	// S01.10 Management has only .01 (system) → first regular should be .11
-	result, err := Create(v, "S01.10", "Notes")
+	result, err := Create(v, "S01.10", "Notes", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestCreateIntegration_JDexContent(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.12", "Pasta Recipes")
+	result, err := Create(v, "S01.12", "Pasta Recipes", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

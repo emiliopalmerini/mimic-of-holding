@@ -8,17 +8,23 @@ import (
 )
 
 func newWriteCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "write <id> <filename> <content>",
+	var template string
+
+	cmd := &cobra.Command{
+		Use:   "write <id> <filename> [content]",
 		Short: "Write a file inside a JD ID",
-		Long:  "Create or overwrite a file inside a JD ID folder (e.g., mimic write S01.12.11 Recipe.md '# Recipe').",
-		Args:  cobra.ExactArgs(3),
+		Long:  "Create or overwrite a file inside a JD ID folder. Content is optional when --template is provided.",
+		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := parseVault()
 			if err != nil {
 				return err
 			}
-			path, err := vault.WriteFile(v, args[0], args[1], args[2])
+			content := ""
+			if len(args) == 3 {
+				content = args[2]
+			}
+			path, err := vault.WriteFile(v, args[0], args[1], content, template)
 			if err != nil {
 				return err
 			}
@@ -26,4 +32,6 @@ func newWriteCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&template, "template", "", "template name to use for file content (used when content is empty)")
+	return cmd
 }

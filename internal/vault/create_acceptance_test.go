@@ -14,7 +14,7 @@ func TestAcceptance_Create_FolderNameMatchesPattern(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.11", "Cinema")
+	result, err := Create(v, "S01.11", "Cinema", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestAcceptance_Create_JDexNamedAfterFolder(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.11", "Cinema")
+	result, err := Create(v, "S01.11", "Cinema", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestAcceptance_Create_ReparseIncludesNewID(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.12", "Sushi Guide")
+	result, err := Create(v, "S01.12", "Sushi Guide", "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

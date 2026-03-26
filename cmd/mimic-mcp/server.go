@@ -50,9 +50,10 @@ func newServer(vaultRoot string) *server.MCPServer {
 
 	s.AddTool(
 		mcp.NewTool("create",
-			mcp.WithDescription("Create a new JD ID in the given category."),
+			mcp.WithDescription("Create a new JD ID in the given category. Use 'templates' tool first to discover available templates."),
 			mcp.WithString("category", mcp.Required(), mcp.Description("Category reference (e.g., S01.11)")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Name for the new ID")),
+			mcp.WithString("template", mcp.Description("Optional template name for the JDex file")),
 		),
 		createHandler(vaultRoot),
 	)
@@ -67,10 +68,11 @@ func newServer(vaultRoot string) *server.MCPServer {
 
 	s.AddTool(
 		mcp.NewTool("write",
-			mcp.WithDescription("Create or overwrite a file inside a JD ID folder."),
+			mcp.WithDescription("Create or overwrite a file inside a JD ID folder. Use 'templates' tool first to discover available templates."),
 			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
 			mcp.WithString("file", mcp.Required(), mcp.Description("Filename to write")),
-			mcp.WithString("content", mcp.Required(), mcp.Description("File content")),
+			mcp.WithString("content", mcp.Description("File content (optional when template is provided)")),
+			mcp.WithString("template", mcp.Description("Optional template name (used when content is empty)")),
 		),
 		writeHandler(vaultRoot),
 	)
@@ -132,6 +134,14 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithString("new_name", mcp.Required(), mcp.Description("Desired new filename")),
 		),
 		renameFileHandler(vaultRoot),
+	)
+
+	s.AddTool(
+		mcp.NewTool("templates",
+			mcp.WithDescription("List available templates for a category. Templates are discovered from .03 IDs in the category, area, and scope hierarchy."),
+			mcp.WithString("category", mcp.Required(), mcp.Description("Category reference (e.g., S01.11)")),
+		),
+		templatesHandler(vaultRoot),
 	)
 
 	s.AddTool(
@@ -268,7 +278,8 @@ func createHandler(vaultRoot string) server.ToolHandlerFunc {
 		if category == "" || name == "" {
 			return mcp.NewToolResultError("category and name are required"), nil
 		}
-		result, err := vault.Create(v, category, name)
+		template := request.GetString("template", "")
+		result, err := vault.Create(v, category, name, template)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -345,7 +356,8 @@ func writeHandler(vaultRoot string) server.ToolHandlerFunc {
 		if ref == "" || file == "" {
 			return mcp.NewToolResultError("ref and file are required"), nil
 		}
-		path, err := vault.WriteFile(v, ref, file, content)
+		template := request.GetString("template", "")
+		path, err := vault.WriteFile(v, ref, file, content, template)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -424,6 +436,31 @@ func renameFileHandler(vaultRoot string) server.ToolHandlerFunc {
 			text += "\nFolder renamed: yes"
 		}
 		return mcp.NewToolResultText(text), nil
+	}
+}
+
+func templatesHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		category := request.GetString("category", "")
+		if category == "" {
+			return mcp.NewToolResultError("category is required"), nil
+		}
+		templates, err := vault.ListTemplates(v, category)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if len(templates) == 0 {
+			return mcp.NewToolResultText(fmt.Sprintf("No templates found for %s", category)), nil
+		}
+		var lines []string
+		for _, t := range templates {
+			lines = append(lines, fmt.Sprintf("%s (%s, %s)", t.Name, t.SourceRef, t.Source))
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Templates for %s:\n%s", category, strings.Join(lines, "\n"))), nil
 	}
 }
 

@@ -64,9 +64,9 @@ func TestReadIntegration_Category(t *testing.T) {
 	if result.Type != "category" {
 		t.Errorf("Type = %q, want category", result.Type)
 	}
-	// S01.11 has 2 IDs
-	if len(result.Children) != 2 {
-		t.Errorf("Children = %v, want 2 IDs", result.Children)
+	// S01.11 has 3 IDs (01, 03, 11)
+	if len(result.Children) != 3 {
+		t.Errorf("Children = %v, want 3 IDs", result.Children)
 	}
 }
 

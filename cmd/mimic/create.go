@@ -8,7 +8,9 @@ import (
 )
 
 func newCreateCmd() *cobra.Command {
-	return &cobra.Command{
+	var template string
+
+	cmd := &cobra.Command{
 		Use:   "create <category> <name>",
 		Short: "Create a new JD ID",
 		Long:  "Create a new ID in the given category (e.g., mimic create S01.11 Cinema).",
@@ -18,7 +20,7 @@ func newCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := vault.Create(v, args[0], args[1])
+			result, err := vault.Create(v, args[0], args[1], template)
 			if err != nil {
 				return err
 			}
@@ -28,4 +30,6 @@ func newCreateCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&template, "template", "", "template name to use for the JDex file")
+	return cmd
 }

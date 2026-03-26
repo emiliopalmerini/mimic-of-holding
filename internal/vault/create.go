@@ -15,7 +15,8 @@ type CreateResult struct {
 }
 
 // Create creates a new JD ID in the given category with the given name.
-func Create(v *Vault, categoryRef string, name string) (*CreateResult, error) {
+// If template is non-empty, the named template is resolved and used as JDex content.
+func Create(v *Vault, categoryRef string, name string, template string) (*CreateResult, error) {
 	if name == "" {
 		return nil, fmt.Errorf("name cannot be empty")
 	}
@@ -38,11 +39,16 @@ func Create(v *Vault, categoryRef string, name string) (*CreateResult, error) {
 	folderName := fmt.Sprintf("%s %s", ref, name)
 	folderPath := filepath.Join(cat.Path, folderName)
 
-	if err := os.MkdirAll(folderPath, 0o755); err != nil {
-		return nil, fmt.Errorf("creating folder: %w", err)
-	}
-
-	jdexContent := fmt.Sprintf(`---
+	// Resolve template before creating folder (fail early)
+	var jdexContent string
+	if template != "" {
+		tmplContent, err := resolveTemplate(v, scopeNum, catNum, template)
+		if err != nil {
+			return nil, err
+		}
+		jdexContent = ApplyTemplate(tmplContent, templateVarsForID(ref, name))
+	} else {
+		jdexContent = fmt.Sprintf(`---
 aliases:
   - %s %s
 location: Obsidian
@@ -54,6 +60,11 @@ tags:
 
 ## Contents
 `, ref, name, ref, name)
+	}
+
+	if err := os.MkdirAll(folderPath, 0o755); err != nil {
+		return nil, fmt.Errorf("creating folder: %w", err)
+	}
 
 	jdexPath := filepath.Join(folderPath, folderName+".md")
 	if err := os.WriteFile(jdexPath, []byte(jdexContent), 0o644); err != nil {

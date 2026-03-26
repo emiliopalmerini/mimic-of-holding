@@ -87,7 +87,7 @@ func TestAppendFileIntegration_AddsNewlineIfMissing(t *testing.T) {
 	}
 
 	// Write a file without trailing newline
-	_, _ = WriteFile(v, "S01.11.11", "no-newline.md", "Line one")
+	_, _ = WriteFile(v, "S01.11.11", "no-newline.md", "Line one", "")
 
 	_, err = AppendFile(v, "S01.11.11", "no-newline.md", "Line two")
 	if err != nil {

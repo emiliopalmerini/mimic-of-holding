@@ -48,10 +48,10 @@ func TestParseVault_FullFixture(t *testing.T) {
 		t.Fatalf("S01.10-19 got %d categories, want 3", got)
 	}
 
-	// S01.11 Entertainment has 2 IDs: S01.11.01 (system) and S01.11.11 (regular)
+	// S01.11 Entertainment has 3 IDs: S01.11.01 (system), S01.11.03 (templates), S01.11.11 (regular)
 	entertainment := lifestyle.Categories[1]
-	if got := len(entertainment.IDs); got != 2 {
-		t.Fatalf("S01.11 got %d IDs, want 2", got)
+	if got := len(entertainment.IDs); got != 3 {
+		t.Fatalf("S01.11 got %d IDs, want 3", got)
 	}
 
 	// S01.12 Food is empty

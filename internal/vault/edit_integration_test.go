@@ -64,7 +64,7 @@ func TestEditFileIntegration_AmbiguousMatch(t *testing.T) {
 	}
 
 	// Write a file with duplicate text
-	path, err := WriteFile(v, "S01.11.11", "dupes.md", "foo bar foo")
+	path, err := WriteFile(v, "S01.11.11", "dupes.md", "foo bar foo", "")
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestEditFileIntegration_MultilineReplace(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = WriteFile(v, "S01.11.11", "multi.md", "line one\nline two\nline three\n")
+	_, err = WriteFile(v, "S01.11.11", "multi.md", "line one\nline two\nline three\n", "")
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestEditFileIntegration_PreservesRestOfFile(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = WriteFile(v, "S01.11.11", "preserve.md", "header\n\nbody content here\n\nfooter\n")
+	_, err = WriteFile(v, "S01.11.11", "preserve.md", "header\n\nbody content here\n\nfooter\n", "")
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

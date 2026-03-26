@@ -8,8 +8,9 @@ import (
 )
 
 // WriteFile creates or overwrites a file inside a JD ID folder.
+// If template is non-empty and content is empty, the named template is used.
 // Returns the absolute path to the written file.
-func WriteFile(v *Vault, ref string, filename string, content string) (string, error) {
+func WriteFile(v *Vault, ref string, filename string, content string, template string) (string, error) {
 	if ref == "" {
 		return "", fmt.Errorf("empty reference")
 	}
@@ -29,6 +30,15 @@ func WriteFile(v *Vault, ref string, filename string, content string) (string, e
 	id, err := findID(v, scopeNum, catNum, idNum)
 	if err != nil {
 		return "", err
+	}
+
+	// Resolve content from template if needed
+	if content == "" && template != "" {
+		tmplContent, err := resolveTemplate(v, scopeNum, catNum, template)
+		if err != nil {
+			return "", err
+		}
+		content = ApplyTemplate(tmplContent, templateVarsForID(ref, id.Name))
 	}
 
 	filePath := filepath.Join(id.Path, filename)
