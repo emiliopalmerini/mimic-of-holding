@@ -25,7 +25,7 @@ func TestAppendFileIntegration_ExistingFile(t *testing.T) {
 	content := string(data)
 
 	// Original content preserved
-	if content[:4] != "Some" {
+	if content[:7] != "# notes" {
 		t.Errorf("original content not preserved, got:\n%s", content)
 	}
 	// Appended content present

@@ -29,6 +29,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newRenameCmd())
 	cmd.AddCommand(newMoveCmd())
 	cmd.AddCommand(newMoveFileCmd())
+	cmd.AddCommand(newRenameFileCmd())
 
 	return cmd
 }

@@ -21,7 +21,7 @@ func TestEditFileIntegration_ReplaceText(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading edited file: %v", err)
 	}
-	want := "Some detailed notes about the theatre season.\n"
+	want := "# notes\n\nSome detailed notes about the theatre season.\n"
 	if string(data) != want {
 		t.Errorf("content = %q, want %q", string(data), want)
 	}
@@ -100,7 +100,7 @@ func TestEditFileIntegration_EmptyNewString(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading edited file: %v", err)
 	}
-	want := "Some notes about the theatre season.\n"
+	want := "# notes\n\nSome notes about the theatre season.\n"
 	if string(data) != want {
 		t.Errorf("content = %q, want %q", string(data), want)
 	}

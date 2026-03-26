@@ -125,6 +125,16 @@ func newServer(vaultRoot string) *server.MCPServer {
 	)
 
 	s.AddTool(
+		mcp.NewTool("rename_file",
+			mcp.WithDescription("Rename a file inside a JD ID folder. Updates wiki links across the vault. If the file is the JDex file, the folder is also renamed."),
+			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
+			mcp.WithString("old_name", mcp.Required(), mcp.Description("Current filename")),
+			mcp.WithString("new_name", mcp.Required(), mcp.Description("Desired new filename")),
+		),
+		renameFileHandler(vaultRoot),
+	)
+
+	s.AddTool(
 		mcp.NewTool("frontmatter",
 			mcp.WithDescription("Edit YAML frontmatter fields. Actions: 'set' (scalar), 'add' (append to list), 'remove' (remove from list)."),
 			mcp.WithString("ref", mcp.Required(), mcp.Description("JD ID reference (e.g., S01.11.11)")),
@@ -382,6 +392,36 @@ func renameHandler(vaultRoot string) server.ToolHandlerFunc {
 		text := fmt.Sprintf("Renamed %s: %q → %q\nPath: %s", result.Ref, result.OldName, result.NewName, result.NewPath)
 		if result.LinksUpdated > 0 {
 			text += fmt.Sprintf("\nUpdated %d wiki links", result.LinksUpdated)
+		}
+		return mcp.NewToolResultText(text), nil
+	}
+}
+
+func renameFileHandler(vaultRoot string) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		v, err := parseVaultForMCP(vaultRoot)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		ref := request.GetString("ref", "")
+		oldName := request.GetString("old_name", "")
+		newName := request.GetString("new_name", "")
+		if ref == "" || oldName == "" || newName == "" {
+			return mcp.NewToolResultError("ref, old_name, and new_name are required"), nil
+		}
+		result, err := vault.RenameFile(v, ref, oldName, newName)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		text := fmt.Sprintf("Renamed file: %q → %q\nPath: %s", oldName, newName, result.NewPath)
+		if result.LinksUpdated > 0 {
+			text += fmt.Sprintf("\nUpdated %d wiki links", result.LinksUpdated)
+		}
+		if result.HeadingUpdated {
+			text += "\nHeading updated: yes"
+		}
+		if result.FolderRenamed {
+			text += "\nFolder renamed: yes"
 		}
 		return mcp.NewToolResultText(text), nil
 	}
