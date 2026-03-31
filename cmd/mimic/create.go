@@ -9,6 +9,7 @@ import (
 
 func newCreateCmd() *cobra.Command {
 	var template string
+	var varFlags []string
 
 	cmd := &cobra.Command{
 		Use:   "create <category> <name>",
@@ -20,7 +21,8 @@ func newCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := vault.Create(v, args[0], args[1], template)
+			customVars := parseVarFlags(varFlags)
+			result, err := vault.Create(v, args[0], args[1], template, customVars)
 			if err != nil {
 				return err
 			}
@@ -31,5 +33,6 @@ func newCreateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&template, "template", "", "template name to use for the JDex file")
+	cmd.Flags().StringArrayVar(&varFlags, "var", nil, "custom template variable as key=value (repeatable)")
 	return cmd
 }

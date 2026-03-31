@@ -127,7 +127,7 @@ func TestCreateIntegration_WithTemplate(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.11", "Opera Night", "Event Review")
+	result, err := Create(v, "S01.11", "Opera Night", "Event Review", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestCreateIntegration_WithTemplateNotFound(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = Create(v, "S01.11", "Opera Night", "Nonexistent Template")
+	_, err = Create(v, "S01.11", "Opera Night", "Nonexistent Template", nil)
 	if err == nil {
 		t.Fatal("expected error for template not found")
 	}
@@ -186,7 +186,7 @@ func TestCreateIntegration_WithoutTemplate(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.11", "Opera Night", "")
+	result, err := Create(v, "S01.11", "Opera Night", "", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestWriteFileIntegration_WithTemplateEmptyContent(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	path, err := WriteFile(v, "S01.11.11", "review.md", "", "Event Review")
+	path, err := WriteFile(v, "S01.11.11", "review.md", "", "Event Review", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestWriteFileIntegration_WithTemplateContentProvided(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	path, err := WriteFile(v, "S01.11.11", "review.md", "My custom content", "Event Review")
+	path, err := WriteFile(v, "S01.11.11", "review.md", "My custom content", "Event Review", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestWriteFileIntegration_WithTemplateNotFound(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = WriteFile(v, "S01.11.11", "review.md", "", "Nonexistent Template")
+	_, err = WriteFile(v, "S01.11.11", "review.md", "", "Nonexistent Template", nil)
 	if err == nil {
 		t.Fatal("expected error for template not found")
 	}
@@ -275,7 +275,7 @@ func TestWriteFileIntegration_NoContentNoTemplate(t *testing.T) {
 	}
 
 	// Empty content with no template creates an empty file (backward compatible)
-	path, err := WriteFile(v, "S01.11.11", "review.md", "", "")
+	path, err := WriteFile(v, "S01.11.11", "review.md", "", "", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestCreateWithTemplateIntegration_Acceptance(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	result, err := Create(v, "S01.11", "Opera Night", "Event Review")
+	result, err := Create(v, "S01.11", "Opera Night", "Event Review", nil)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -315,6 +315,169 @@ func TestCreateWithTemplateIntegration_Acceptance(t *testing.T) {
 	}
 }
 
+// --- Custom template variables integration tests ---
+
+func TestWriteFileIntegration_WithTemplateAndCustomVars(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	customVars := map[string]string{
+		"rating": "5/5",
+		"venue":  "Teatro Regio",
+	}
+	path, err := WriteFile(v, "S01.11.11", "review.md", "", "Event Review", customVars)
+	if err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "Rating: 5/5") {
+		t.Error("custom var {{rating}} should be substituted")
+	}
+	if !strings.Contains(content, "Venue: Teatro Regio") {
+		t.Error("custom var {{venue}} should be substituted")
+	}
+	// Built-in vars should also be substituted
+	if strings.Contains(content, "{{name}}") {
+		t.Error("built-in {{name}} should be substituted")
+	}
+}
+
+func TestWriteFileIntegration_WithTemplateNoCustomVars(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	path, err := WriteFile(v, "S01.11.11", "review.md", "", "Event Review", nil)
+	if err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	data, _ := os.ReadFile(path)
+	content := string(data)
+
+	// Custom placeholders should be left untouched (backward compatible)
+	if !strings.Contains(content, "{{rating}}") {
+		t.Error("{{rating}} should be left untouched when no custom vars")
+	}
+	if !strings.Contains(content, "{{venue}}") {
+		t.Error("{{venue}} should be left untouched when no custom vars")
+	}
+}
+
+func TestWriteFileIntegration_ContentWinsOverCustomVars(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	customVars := map[string]string{"rating": "5/5"}
+	path, err := WriteFile(v, "S01.11.11", "review.md", "My content", "Event Review", customVars)
+	if err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	data, _ := os.ReadFile(path)
+	if string(data) != "My content" {
+		t.Errorf("content should win, got %q", string(data))
+	}
+}
+
+func TestCreateIntegration_WithTemplateAndCustomVars(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	customVars := map[string]string{
+		"rating": "4/5",
+		"venue":  "La Scala",
+	}
+	result, err := Create(v, "S01.11", "Opera Night", "Event Review", customVars)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	jdexPath := filepath.Join(result.Path, result.Ref+" "+result.Name+".md")
+	data, err := os.ReadFile(jdexPath)
+	if err != nil {
+		t.Fatalf("reading JDex: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "Rating: 4/5") {
+		t.Error("custom var {{rating}} should be substituted")
+	}
+	if !strings.Contains(content, "Venue: La Scala") {
+		t.Error("custom var {{venue}} should be substituted")
+	}
+	if strings.Contains(content, "{{name}}") {
+		t.Error("built-in {{name}} should also be substituted")
+	}
+}
+
+func TestCreateIntegration_WithoutTemplateCustomVarsIgnored(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	customVars := map[string]string{"rating": "5/5"}
+	result, err := Create(v, "S01.11", "Opera Night", "", customVars)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Should use default JDex, custom vars ignored
+	jdexPath := filepath.Join(result.Path, result.Ref+" "+result.Name+".md")
+	data, _ := os.ReadFile(jdexPath)
+	content := string(data)
+	if !strings.Contains(content, "## Contents") {
+		t.Error("default JDex should have ## Contents")
+	}
+}
+
+// --- Acceptance tests with custom vars ---
+
+func TestWriteFileWithCustomVarsIntegration_Acceptance(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	customVars := map[string]string{"rating": "5/5", "venue": "Arena di Verona"}
+	_, err = WriteFile(v, "S01.11.11", "review.md", "", "Event Review", customVars)
+	if err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	readResult, err := Read(v, "S01.11.11", "review.md")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	if !strings.Contains(readResult.Content, "Rating: 5/5") {
+		t.Error("custom var should be readable after write")
+	}
+	if !strings.Contains(readResult.Content, "Venue: Arena di Verona") {
+		t.Error("custom var should be readable after write")
+	}
+}
+
 func TestWriteFileWithTemplateIntegration_Acceptance(t *testing.T) {
 	root := copyFixtureVault(t)
 	v, err := ParseVault(root)
@@ -322,7 +485,7 @@ func TestWriteFileWithTemplateIntegration_Acceptance(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	_, err = WriteFile(v, "S01.11.11", "review.md", "", "Event Review")
+	_, err = WriteFile(v, "S01.11.11", "review.md", "", "Event Review", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

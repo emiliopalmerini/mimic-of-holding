@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/epalmerini/mimic-of-holding/internal/vault"
 	"github.com/spf13/cobra"
@@ -45,4 +46,18 @@ func resolveVaultPath() string {
 
 func parseVault() (*vault.Vault, error) {
 	return vault.ParseVault(resolveVaultPath())
+}
+
+func parseVarFlags(flags []string) map[string]string {
+	if len(flags) == 0 {
+		return nil
+	}
+	vars := make(map[string]string, len(flags))
+	for _, f := range flags {
+		k, v, _ := strings.Cut(f, "=")
+		if k != "" {
+			vars[k] = v
+		}
+	}
+	return vars
 }

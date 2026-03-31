@@ -9,5 +9,6 @@ date: {{date}}
 
 ## Review
 
-Rating:
+Rating: {{rating}}
+Venue: {{venue}}
 Notes:

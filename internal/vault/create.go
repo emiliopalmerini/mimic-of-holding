@@ -16,7 +16,8 @@ type CreateResult struct {
 
 // Create creates a new JD ID in the given category with the given name.
 // If template is non-empty, the named template is resolved and used as JDex content.
-func Create(v *Vault, categoryRef string, name string, template string) (*CreateResult, error) {
+// customVars are substituted into the template alongside built-in variables.
+func Create(v *Vault, categoryRef string, name string, template string, customVars map[string]string) (*CreateResult, error) {
 	if name == "" {
 		return nil, fmt.Errorf("name cannot be empty")
 	}
@@ -46,7 +47,9 @@ func Create(v *Vault, categoryRef string, name string, template string) (*Create
 		if err != nil {
 			return nil, err
 		}
-		jdexContent = ApplyTemplate(tmplContent, templateVarsForID(ref, name))
+		vars := templateVarsForID(ref, name)
+		vars.CustomVars = customVars
+		jdexContent = ApplyTemplate(tmplContent, vars)
 	} else {
 		jdexContent = fmt.Sprintf(`---
 aliases:

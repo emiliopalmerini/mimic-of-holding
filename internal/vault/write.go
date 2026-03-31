@@ -9,8 +9,9 @@ import (
 
 // WriteFile creates or overwrites a file inside a JD ID folder.
 // If template is non-empty and content is empty, the named template is used.
+// customVars are substituted into the template alongside built-in variables.
 // Returns the absolute path to the written file.
-func WriteFile(v *Vault, ref string, filename string, content string, template string) (string, error) {
+func WriteFile(v *Vault, ref string, filename string, content string, template string, customVars map[string]string) (string, error) {
 	if ref == "" {
 		return "", fmt.Errorf("empty reference")
 	}
@@ -38,7 +39,9 @@ func WriteFile(v *Vault, ref string, filename string, content string, template s
 		if err != nil {
 			return "", err
 		}
-		content = ApplyTemplate(tmplContent, templateVarsForID(ref, id.Name))
+		vars := templateVarsForID(ref, id.Name)
+		vars.CustomVars = customVars
+		content = ApplyTemplate(tmplContent, vars)
 	}
 
 	filePath := filepath.Join(id.Path, filename)

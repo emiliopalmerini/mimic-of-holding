@@ -13,7 +13,7 @@ func TestWriteFileIntegration_NewFile(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	path, err := WriteFile(v, "S01.11.11", "new-note.md", "# New Note\n\nSome content.", "")
+	path, err := WriteFile(v, "S01.11.11", "new-note.md", "# New Note\n\nSome content.", "", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestWriteFileIntegration_Overwrite(t *testing.T) {
 	}
 
 	// notes.md already exists in S01.11.11
-	_, err = WriteFile(v, "S01.11.11", "notes.md", "Updated content.", "")
+	_, err = WriteFile(v, "S01.11.11", "notes.md", "Updated content.", "", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestWriteFileIntegration_EmptyContent(t *testing.T) {
 		t.Fatalf("ParseVault: %v", err)
 	}
 
-	path, err := WriteFile(v, "S01.11.11", "empty.md", "", "")
+	path, err := WriteFile(v, "S01.11.11", "empty.md", "", "", nil)
 	if err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

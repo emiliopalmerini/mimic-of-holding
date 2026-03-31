@@ -9,6 +9,7 @@ import (
 
 func newWriteCmd() *cobra.Command {
 	var template string
+	var varFlags []string
 
 	cmd := &cobra.Command{
 		Use:   "write <id> <filename> [content]",
@@ -24,7 +25,8 @@ func newWriteCmd() *cobra.Command {
 			if len(args) == 3 {
 				content = args[2]
 			}
-			path, err := vault.WriteFile(v, args[0], args[1], content, template)
+			customVars := parseVarFlags(varFlags)
+			path, err := vault.WriteFile(v, args[0], args[1], content, template, customVars)
 			if err != nil {
 				return err
 			}
@@ -33,5 +35,6 @@ func newWriteCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&template, "template", "", "template name to use for file content (used when content is empty)")
+	cmd.Flags().StringArrayVar(&varFlags, "var", nil, "custom template variable as key=value (repeatable)")
 	return cmd
 }

@@ -20,14 +20,15 @@ type TemplateInfo struct {
 
 // TemplateVars holds the known variables for template substitution.
 type TemplateVars struct {
-	Ref   string
-	Name  string
-	Title string
-	Date  string
+	Ref        string
+	Name       string
+	Title      string
+	Date       string
+	CustomVars map[string]string
 }
 
 // ApplyTemplate substitutes known {{variables}} in content.
-// Unknown variables are left untouched.
+// Unknown variables are left untouched unless provided in CustomVars.
 func ApplyTemplate(content string, vars TemplateVars) string {
 	known := map[string]string{
 		"{{ref}}":   vars.Ref,
@@ -39,6 +40,13 @@ func ApplyTemplate(content string, vars TemplateVars) string {
 		if value != "" {
 			content = strings.ReplaceAll(content, placeholder, value)
 		}
+	}
+	for key, value := range vars.CustomVars {
+		placeholder := "{{" + key + "}}"
+		if _, isBuiltin := known[placeholder]; isBuiltin {
+			continue
+		}
+		content = strings.ReplaceAll(content, placeholder, value)
 	}
 	return content
 }

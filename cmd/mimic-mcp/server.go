@@ -54,6 +54,7 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithString("category", mcp.Required(), mcp.Description("Category reference (e.g., S01.11)")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Name for the new ID")),
 			mcp.WithString("template", mcp.Description("Optional template name for the JDex file")),
+			mcp.WithObject("vars", mcp.Description("Optional custom template variables as key-value pairs (e.g., {\"company\": \"Acme\", \"role\": \"SRE\"})"), mcp.AdditionalProperties(map[string]any{"type": "string"})),
 		),
 		createHandler(vaultRoot),
 	)
@@ -73,6 +74,7 @@ func newServer(vaultRoot string) *server.MCPServer {
 			mcp.WithString("file", mcp.Required(), mcp.Description("Filename to write")),
 			mcp.WithString("content", mcp.Description("File content (optional when template is provided)")),
 			mcp.WithString("template", mcp.Description("Optional template name (used when content is empty)")),
+			mcp.WithObject("vars", mcp.Description("Optional custom template variables as key-value pairs (e.g., {\"rating\": \"5/5\", \"venue\": \"Arena\"})"), mcp.AdditionalProperties(map[string]any{"type": "string"})),
 		),
 		writeHandler(vaultRoot),
 	)
@@ -187,6 +189,24 @@ func parseVaultForMCP(root string) (*vault.Vault, error) {
 	return vault.ParseVault(root)
 }
 
+func extractVars(request mcp.CallToolRequest) map[string]string {
+	args := request.GetArguments()
+	if args == nil {
+		return nil
+	}
+	raw, ok := args["vars"].(map[string]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	vars := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if s, ok := v.(string); ok {
+			vars[k] = s
+		}
+	}
+	return vars
+}
+
 func browseHandler(vaultRoot string) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		v, err := parseVaultForMCP(vaultRoot)
@@ -279,7 +299,8 @@ func createHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError("category and name are required"), nil
 		}
 		template := request.GetString("template", "")
-		result, err := vault.Create(v, category, name, template)
+		customVars := extractVars(request)
+		result, err := vault.Create(v, category, name, template, customVars)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -357,7 +378,8 @@ func writeHandler(vaultRoot string) server.ToolHandlerFunc {
 			return mcp.NewToolResultError("ref and file are required"), nil
 		}
 		template := request.GetString("template", "")
-		path, err := vault.WriteFile(v, ref, file, content, template)
+		customVars := extractVars(request)
+		path, err := vault.WriteFile(v, ref, file, content, template, customVars)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
