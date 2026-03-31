@@ -102,6 +102,150 @@ func TestCreateIntegration_OnlySystemIDs(t *testing.T) {
 	}
 }
 
+// --- Auto-create hierarchy tests ---
+
+func TestCreateIntegration_AutoCreateCategory(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	// S01.13 doesn't exist but area S01.10-19 does
+	result, err := Create(v, "S01.13", "Fitness", "", nil, CreateOpts{CategoryName: "Fitness"})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if result.Ref != "S01.13.11" {
+		t.Errorf("Ref = %q, want S01.13.11", result.Ref)
+	}
+
+	// Verify category folder was created
+	v2, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("re-parse: %v", err)
+	}
+	cat, err := findCategory(v2, 1, 13)
+	if err != nil {
+		t.Fatalf("category should exist after auto-create: %v", err)
+	}
+	if cat.Name != "Fitness" {
+		t.Errorf("category name = %q, want Fitness", cat.Name)
+	}
+}
+
+func TestCreateIntegration_AutoCreateAreaAndCategory(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	// S01.30-39 area doesn't exist, nor does S01.31 category
+	result, err := Create(v, "S01.31", "Running", "", nil, CreateOpts{
+		CategoryName: "Sports",
+		AreaName:     "Health & Fitness",
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if result.Ref != "S01.31.11" {
+		t.Errorf("Ref = %q, want S01.31.11", result.Ref)
+	}
+
+	// Verify area and category exist after re-parse
+	v2, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("re-parse: %v", err)
+	}
+
+	area := findAreaForCategory(v2, 1, 31)
+	if area == nil {
+		t.Fatal("area S01.30-39 should exist after auto-create")
+	}
+	if area.Name != "Health & Fitness" {
+		t.Errorf("area name = %q, want Health & Fitness", area.Name)
+	}
+	if area.RangeStart != 30 || area.RangeEnd != 39 {
+		t.Errorf("area range = %d-%d, want 30-39", area.RangeStart, area.RangeEnd)
+	}
+
+	cat, err := findCategory(v2, 1, 31)
+	if err != nil {
+		t.Fatalf("category should exist: %v", err)
+	}
+	if cat.Name != "Sports" {
+		t.Errorf("category name = %q, want Sports", cat.Name)
+	}
+}
+
+func TestCreateIntegration_AutoCreateCategoryMissingName(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	// S01.13 doesn't exist, no CategoryName provided
+	_, err = Create(v, "S01.13", "Yoga", "", nil, CreateOpts{})
+	if err == nil {
+		t.Fatal("expected error when category doesn't exist and CategoryName is empty")
+	}
+}
+
+func TestCreateIntegration_AutoCreateAreaMissingName(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	// S01.30-39 area doesn't exist, AreaName not provided
+	_, err = Create(v, "S01.31", "Running", "", nil, CreateOpts{CategoryName: "Sports"})
+	if err == nil {
+		t.Fatal("expected error when area doesn't exist and AreaName is empty")
+	}
+}
+
+func TestCreateIntegration_AutoCreateScopeNotFound(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	// S99 scope doesn't exist — should still error
+	_, err = Create(v, "S99.11", "Test", "", nil, CreateOpts{
+		CategoryName: "Test Cat",
+		AreaName:     "Test Area",
+	})
+	if err == nil {
+		t.Fatal("expected error when scope doesn't exist")
+	}
+}
+
+func TestCreateIntegration_ExistingCategoryOptsIgnored(t *testing.T) {
+	root := copyFixtureVault(t)
+	v, err := ParseVault(root)
+	if err != nil {
+		t.Fatalf("ParseVault: %v", err)
+	}
+
+	// S01.11 exists — opts should be ignored, normal behavior
+	result, err := Create(v, "S01.11", "Cinema", "", nil, CreateOpts{
+		CategoryName: "Should Be Ignored",
+		AreaName:     "Should Be Ignored",
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if result.Ref != "S01.11.12" {
+		t.Errorf("Ref = %q, want S01.11.12", result.Ref)
+	}
+}
+
 func TestCreateIntegration_JDexContent(t *testing.T) {
 	root := copyFixtureVault(t)
 	v, err := ParseVault(root)

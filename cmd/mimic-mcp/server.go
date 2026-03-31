@@ -50,11 +50,13 @@ func newServer(vaultRoot string) *server.MCPServer {
 
 	s.AddTool(
 		mcp.NewTool("create",
-			mcp.WithDescription("Create a new JD ID in the given category. Use 'templates' tool first to discover available templates."),
+			mcp.WithDescription("Create a new JD ID in the given category. Auto-creates area and category if they don't exist (provide category_name/area_name). Use 'templates' tool first to discover available templates."),
 			mcp.WithString("category", mcp.Required(), mcp.Description("Category reference (e.g., S01.11)")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Name for the new ID")),
 			mcp.WithString("template", mcp.Description("Optional template name for the JDex file")),
 			mcp.WithObject("vars", mcp.Description("Optional custom template variables as key-value pairs (e.g., {\"company\": \"Acme\", \"role\": \"SRE\"})"), mcp.AdditionalProperties(map[string]any{"type": "string"})),
+			mcp.WithString("category_name", mcp.Description("Name for auto-created category (required if category doesn't exist)")),
+			mcp.WithString("area_name", mcp.Description("Name for auto-created area (required if area doesn't exist)")),
 		),
 		createHandler(vaultRoot),
 	)
@@ -300,7 +302,11 @@ func createHandler(vaultRoot string) server.ToolHandlerFunc {
 		}
 		template := request.GetString("template", "")
 		customVars := extractVars(request)
-		result, err := vault.Create(v, category, name, template, customVars)
+		opts := vault.CreateOpts{
+			CategoryName: request.GetString("category_name", ""),
+			AreaName:     request.GetString("area_name", ""),
+		}
+		result, err := vault.Create(v, category, name, template, customVars, opts)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
