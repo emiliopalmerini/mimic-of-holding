@@ -2,13 +2,12 @@
 
 ## Project Overview
 
-Mimic of Holding is a Go CLI + MCP server for interacting with a Johnny Decimal organized Obsidian vault (Bag of Holding).
+Mimic of Holding is a Go CLI for interacting with a Johnny Decimal organized Obsidian vault (Bag of Holding).
 
 ## Architecture
 
 - `internal/vault/` — Core domain. All business logic lives here. No external dependencies.
 - `cmd/mimic/` — Cobra CLI. Thin adapter over domain functions.
-- `cmd/mimic-mcp/` — MCP server via `mcp-go`. Thin adapter over domain functions.
 - `docs/adr/` — Architecture Decision Records. Each feature has a pre-registered spec.
 - `testdata/vault/` — JD vault fixture used by all tests.
 
@@ -27,12 +26,11 @@ This project uses pre-registration TDD:
 ```sh
 go test ./...              # Run all tests
 go build ./cmd/mimic       # Build CLI
-go build ./cmd/mimic-mcp   # Build MCP server
 ```
 
 ## Vault Path
 
-Default vault path: `~/Documents/bag_of_holding`. Override with `--vault` flag (CLI) or `--vault` arg (MCP binary).
+Default vault path: `~/Documents/bag_of_holding`. Override with `--vault` flag.
 
 ## Version Control
 
