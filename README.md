@@ -2,7 +2,7 @@
 
 A CLI for interacting with a [Johnny Decimal](https://johnnydecimal.com/) organized Obsidian vault.
 
-Built to give [Claude Code](https://claude.ai/code) native access to the [Bag of Holding](https://github.com/emiliopalmerini/bag_of_holding) vault.
+Built to give [Claude Code](https://claude.ai/code) native access to my personal Obsidian Vault (called bag_of_holding, hence the name)
 
 ## Commands
 
