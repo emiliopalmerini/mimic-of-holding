@@ -323,6 +323,62 @@ func TestCmd_LogTailEmptyWhenNoLog(t *testing.T) {
 	}
 }
 
+// --- Lint ---
+
+func TestCmd_LintCleanFixture(t *testing.T) {
+	root := copyTestdataVault(t)
+	out, _, err := executeCmd(t, "lint", "--vault", root)
+	if err != nil {
+		t.Fatalf("lint: %v", err)
+	}
+	if !strings.Contains(out, "No issues found.") {
+		t.Errorf("expected clean report, got:\n%s", out)
+	}
+}
+
+func TestCmd_LintReportsIssuesNonZero(t *testing.T) {
+	root := copyTestdataVault(t)
+	jdex := root + "/S01 Me/S01.10-19 Lifestyle/S01.11 Entertainment/S01.11.11 Theatre, 2025 Season/S01.11.11 Theatre, 2025 Season.md"
+	if err := os.Remove(jdex); err != nil {
+		t.Fatalf("remove JDex: %v", err)
+	}
+	out, _, err := executeCmd(t, "lint", "S01", "--vault", root)
+	if err == nil {
+		t.Fatal("expected non-zero exit on findings")
+	}
+	if !strings.Contains(out, "missing-jdex") {
+		t.Errorf("expected report to mention missing-jdex:\n%s", out)
+	}
+}
+
+func TestCmd_LintScopeAutoLogs(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "lint", "S01", "--vault", root); err != nil {
+		t.Fatalf("lint: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "-n", "1", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if !strings.Contains(out, "lint | S01") {
+		t.Errorf("expected lint auto-log entry, got:\n%s", out)
+	}
+}
+
+func TestCmd_LintWholeVaultDoesNotAutoLog(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "lint", "--vault", root); err != nil {
+		t.Fatalf("lint: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Errorf("whole-vault lint should not auto-log; got:\n%s", out)
+	}
+}
+
 // copyTestdataVault creates a temp copy for write tests (reuses logic from domain tests).
 func copyTestdataVault(t *testing.T) string {
 	t.Helper()

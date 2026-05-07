@@ -30,6 +30,18 @@ var embedRe = regexp.MustCompile(`!\[\[([^\]|#^]+)(?:[#^][^\]|]*)?(?:\|[^\]]+)?\
 // Used to strip code blocks before scanning for wiki-links/embeds.
 var fencedBlockRe = regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\\n.*?```")
 
+// inlineCodeRe matches single-backtick inline code spans on a single line.
+// Used to strip prose-embedded examples (e.g. `[[wiki links]]`) before scanning.
+var inlineCodeRe = regexp.MustCompile("`[^`\n]*`")
+
+// stripCodeForLinkScan removes fenced code blocks and inline code spans so
+// that wiki-link patterns inside docs/examples do not produce false positives.
+func stripCodeForLinkScan(text string) string {
+	text = fencedBlockRe.ReplaceAllString(text, "")
+	text = inlineCodeRe.ReplaceAllString(text, "")
+	return text
+}
+
 // Lint runs all deterministic checks against the vault. If scope is
 // non-empty (e.g. "S01"), only issues whose source ref is in that scope
 // are returned, but the global link / target index spans the whole vault
@@ -145,11 +157,18 @@ func buildLintIndex(v *Vault) (*lintIndex, map[string]bool, error) {
 			idx.targets[info.Name()] = true
 			return nil
 		}
+		// Index every file as a potential link target. Markdown files are
+		// stored both with and without the ".md" extension; non-markdown
+		// (PDFs, images, scripts) are stored under their full filename and
+		// also under their stem so `[[file.pdf]]` and `[[file]]` both resolve.
+		idx.targets[info.Name()] = true
+		ext := filepath.Ext(info.Name())
+		stem := strings.TrimSuffix(info.Name(), ext)
+		idx.targets[stem] = true
+
 		if !strings.HasSuffix(info.Name(), ".md") {
 			return nil
 		}
-		stem := strings.TrimSuffix(info.Name(), ".md")
-		idx.targets[stem] = true
 
 		data, rerr := os.ReadFile(path)
 		if rerr != nil {
@@ -172,7 +191,7 @@ func buildLintIndex(v *Vault) (*lintIndex, map[string]bool, error) {
 		}
 
 		// Links — strip code fences first so dataview-style content is ignored.
-		stripped := fencedBlockRe.ReplaceAllString(text, "")
+		stripped := stripCodeForLinkScan(text)
 		for _, m := range wikiLinkRe.FindAllStringSubmatch(stripped, -1) {
 			head := normalizeLinkHead(m[1])
 			if head != "" {
@@ -262,12 +281,17 @@ func checkID(id *ID, idx *lintIndex, links map[string]bool, out *[]LintIssue) {
 		jdexExists = true
 	}
 
+	// Standard zero IDs (.01–.09) are system folders (Inbox, Templates,
+	// Archive, etc.). They are conventionally bare and not flagged for
+	// missing-jdex. If they do carry a JDex, its frontmatter is still checked.
 	if !jdexExists {
-		*out = append(*out, LintIssue{
-			Category: "missing-jdex",
-			Ref:      folderName,
-			Detail:   "folder has no JDex matching its name",
-		})
+		if !id.IsSystemID {
+			*out = append(*out, LintIssue{
+				Category: "missing-jdex",
+				Ref:      folderName,
+				Detail:   "folder has no JDex matching its name",
+			})
+		}
 	} else {
 		checkJDexFrontmatter(jdexPath, folderName, out)
 	}
@@ -454,7 +478,7 @@ func checkBrokenLinks(v *Vault, scopeFilter bool, scopeNum int, idx *lintIndex, 
 		if rerr != nil {
 			return nil
 		}
-		text := fencedBlockRe.ReplaceAllString(string(data), "")
+		text := stripCodeForLinkScan(string(data))
 		rel, _ := filepath.Rel(v.Root, path)
 
 		seen := map[string]bool{}
