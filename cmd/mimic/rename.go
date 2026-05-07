@@ -22,6 +22,9 @@ func newRenameCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(result.Ref), "rename",
+				fmt.Sprintf("%s %s", result.Ref, result.OldName),
+				fmt.Sprintf("%s %s", result.Ref, result.NewName), "")
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Renamed %s: %q → %q\n", result.Ref, result.OldName, result.NewName)
 			fmt.Fprintf(w, "Path: %s\n", result.NewPath)

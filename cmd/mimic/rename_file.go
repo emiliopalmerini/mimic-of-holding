@@ -22,6 +22,9 @@ func newRenameFileCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(args[0]), "rename-file",
+				fmt.Sprintf("%s/%s", args[0], args[1]),
+				fmt.Sprintf("%s/%s", args[0], args[2]), "")
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Renamed file: %q → %q\n", args[1], args[2])
 			fmt.Fprintf(w, "Path: %s\n", result.NewPath)

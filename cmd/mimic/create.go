@@ -31,6 +31,8 @@ func newCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(result.Ref), "create",
+				fmt.Sprintf("%s %s", result.Ref, result.Name), "", "Created JDex.")
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Created %s %s\n", result.Ref, result.Name)
 			fmt.Fprintf(w, "Path: %s\n", result.Path)

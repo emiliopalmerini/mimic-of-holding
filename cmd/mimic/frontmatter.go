@@ -33,6 +33,9 @@ func newFrontmatterCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(ref), "frontmatter",
+				fmt.Sprintf("%s/%s", ref, file), "",
+				fmt.Sprintf("%s %s", action, key))
 			fmt.Fprintf(cmd.OutOrStdout(), "Updated frontmatter in %s\n", path)
 			return nil
 		},

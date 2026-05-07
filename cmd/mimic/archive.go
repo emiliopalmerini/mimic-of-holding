@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/epalmerini/mimic-of-holding/internal/vault"
 	"github.com/spf13/cobra"
@@ -22,6 +23,8 @@ func newArchiveCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(result.Ref), "archive",
+				result.Ref, filepath.Base(result.NewPath), "")
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Archived %s\n", result.Ref)
 			fmt.Fprintf(w, "New path: %s\n", result.NewPath)

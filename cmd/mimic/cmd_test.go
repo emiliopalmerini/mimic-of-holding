@@ -249,6 +249,69 @@ func TestCmd_LogAppendMissingArgs(t *testing.T) {
 	}
 }
 
+func TestCmd_CreateAutoLogs(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "create", "S01.12", "Pasta", "--vault", root); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "-n", "1", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if !strings.Contains(out, "create | S01.12.11 Pasta") {
+		t.Errorf("expected auto-log entry, got:\n%s", out)
+	}
+}
+
+func TestCmd_ArchiveAutoLogs(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "archive", "S01.11.11", "--vault", root); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "-n", "1", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if !strings.Contains(out, "archive | S01.11.11") {
+		t.Errorf("expected auto-log archive entry, got:\n%s", out)
+	}
+	if !strings.Contains(out, "→ [Archived]") {
+		t.Errorf("expected secondary target with [Archived] prefix, got:\n%s", out)
+	}
+}
+
+func TestCmd_FrontmatterAutoLogs(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "frontmatter", "set", "S01.11.11", "S01.11.11 Theatre, 2025 Season.md", "location", "Notion", "--vault", root); err != nil {
+		t.Fatalf("frontmatter set: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "-n", "1", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if !strings.Contains(out, "frontmatter | S01.11.11/") {
+		t.Errorf("expected frontmatter auto-log entry, got:\n%s", out)
+	}
+	if !strings.Contains(out, "set location") {
+		t.Errorf("expected details to mention 'set location', got:\n%s", out)
+	}
+}
+
+func TestCmd_FailedMutationDoesNotLog(t *testing.T) {
+	root := copyTestdataVault(t)
+	// Archive a non-existent ref; should fail and not log.
+	if _, _, err := executeCmd(t, "archive", "S01.99.99", "--vault", root); err == nil {
+		t.Fatal("expected error archiving non-existent ref")
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Errorf("expected empty log after failed mutation, got:\n%s", out)
+	}
+}
+
 func TestCmd_LogTailEmptyWhenNoLog(t *testing.T) {
 	root := copyTestdataVault(t)
 	out, _, err := executeCmd(t, "log", "tail", "S01", "--vault", root)

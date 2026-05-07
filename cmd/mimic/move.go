@@ -22,6 +22,8 @@ func newMoveCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(result.NewRef), "move",
+				result.OldRef, result.NewRef, "")
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Moved %s → %s\n", result.OldRef, result.NewRef)
 			fmt.Fprintf(w, "Path: %s\n", result.NewPath)
@@ -47,6 +49,9 @@ func newMoveFileCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoLog(cmd.ErrOrStderr(), v, scopeFromRef(args[2]), "move-file",
+				fmt.Sprintf("%s/%s", args[0], args[1]),
+				fmt.Sprintf("%s/%s", args[2], args[1]), "")
 			fmt.Fprintf(cmd.OutOrStdout(), "Moved to %s\n", path)
 			return nil
 		},
