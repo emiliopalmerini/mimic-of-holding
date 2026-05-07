@@ -12,12 +12,14 @@ import (
 
 // SearchResult represents a single match from a vault search.
 type SearchResult struct {
-	Type       string // "scope", "area", "category", "id"
-	Ref        string // "S01", "S01.10-19", "S01.11", "S01.11.11"
+	Type       string  // "scope", "area", "category", "id"
+	Ref        string  // "S01", "S01.10-19", "S01.11", "S01.11.11"
 	Name       string
 	Path       string
-	Breadcrumb string // human-readable hierarchy path, e.g., "S01 Me > S01.11 Entertainment > ..."
-	MatchLine  string // non-empty only for content matches, format: "filename: line"
+	Breadcrumb string  // human-readable hierarchy path, e.g., "S01 Me > S01.11 Entertainment > ..."
+	MatchLine  string  // non-empty only for content matches, format: "filename: line"
+	Score      float64 // BM25 score (ranked mode only)
+	Snippet    string  // single-line excerpt (ranked mode only)
 }
 
 // SearchOpts configures search behavior.
@@ -27,6 +29,8 @@ type SearchOpts struct {
 	Meta      bool   // if true, query is "key:value" format for frontmatter search
 	Backlinks bool   // if true, query is a JD ref; returns notes linking to it
 	Tags      bool   // if true, list tags (empty query) or find notes by tag (with query)
+	Ranked    bool   // if true, content search uses BM25 ranking (requires Content=true)
+	Top       int    // max results in Ranked mode (default 10)
 }
 
 var (
@@ -79,6 +83,9 @@ func Search(v *Vault, query string, opts SearchOpts) ([]SearchResult, error) {
 	}
 
 	if opts.Content {
+		if opts.Ranked {
+			return searchRanked(v, scopes, query, opts)
+		}
 		return searchContent(scopes, query)
 	}
 

@@ -323,6 +323,46 @@ func TestCmd_LogTailEmptyWhenNoLog(t *testing.T) {
 	}
 }
 
+// --- Ranked content search ---
+
+func TestCmd_SearchRanked(t *testing.T) {
+	out, _, err := executeCmd(t, "search", "??theatre", "--vault", testdataVault(t))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "S01.11.11") {
+		t.Errorf("expected Theatre ID in ranked results:\n%s", out)
+	}
+	if !strings.Contains(out, "score") {
+		t.Errorf("expected score annotation in output:\n%s", out)
+	}
+}
+
+func TestCmd_SearchRankedTop(t *testing.T) {
+	out, _, err := executeCmd(t, "search", "??season", "--top", "1", "--vault", testdataVault(t))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Count occurrences of "[id]" prefix (one per result).
+	count := strings.Count(out, "[id]")
+	if count > 1 {
+		t.Errorf("expected at most 1 result, got %d:\n%s", count, out)
+	}
+}
+
+func TestCmd_SearchSubstringStillWorks(t *testing.T) {
+	out, _, err := executeCmd(t, "search", "?Italian", "--vault", testdataVault(t))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "Italian") {
+		t.Errorf("expected substring match in output:\n%s", out)
+	}
+	if strings.Contains(out, "score") {
+		t.Errorf("substring mode should not annotate scores:\n%s", out)
+	}
+}
+
 // --- Lint ---
 
 func TestCmd_LintCleanFixture(t *testing.T) {
