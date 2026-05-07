@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -94,7 +95,11 @@ func TestReadIntegration_IDWithJDex(t *testing.T) {
 }
 
 func TestReadIntegration_IDNoJDex(t *testing.T) {
-	root := filepath.Join(testdataDir(t), "vault")
+	root := copyFixtureVault(t)
+	jdex := filepath.Join(root, "S01 Me", "S01.10-19 Lifestyle", "S01.11 Entertainment", "S01.11.01 Inbox for S01.11", "S01.11.01 Inbox for S01.11.md")
+	if err := os.Remove(jdex); err != nil {
+		t.Fatalf("remove JDex: %v", err)
+	}
 	v, err := ParseVault(root)
 	if err != nil {
 		t.Fatalf("ParseVault: %v", err)
