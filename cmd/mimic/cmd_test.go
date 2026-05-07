@@ -198,6 +198,68 @@ func TestCmd_InboxScopeFilter(t *testing.T) {
 	}
 }
 
+// --- Log ---
+
+func TestCmd_LogAppendThenTail(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "log", "append", "S01", "ingest", "Karpathy LLM Wiki",
+		"--details", "Touched: S01.21.11", "--vault", root); err != nil {
+		t.Fatalf("log append: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if !strings.Contains(out, "ingest | Karpathy LLM Wiki") {
+		t.Errorf("expected entry in tail output:\n%s", out)
+	}
+	if !strings.Contains(out, "Touched: S01.21.11") {
+		t.Errorf("expected details in tail output:\n%s", out)
+	}
+}
+
+func TestCmd_LogAppendWithSecondary(t *testing.T) {
+	root := copyTestdataVault(t)
+	if _, _, err := executeCmd(t, "log", "append", "S01", "archive", "S01.11.15 Theatre",
+		"--secondary", "S01.11.09/[Archived] Theatre", "--vault", root); err != nil {
+		t.Fatalf("log append: %v", err)
+	}
+	out, _, err := executeCmd(t, "log", "tail", "S01", "-n", "1", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if !strings.Contains(out, "→ S01.11.09/[Archived] Theatre") {
+		t.Errorf("expected secondary in tail output:\n%s", out)
+	}
+}
+
+func TestCmd_LogAppendRejectsBadOp(t *testing.T) {
+	root := copyTestdataVault(t)
+	_, _, err := executeCmd(t, "log", "append", "S01", "DELETE", "X", "--vault", root)
+	if err == nil {
+		t.Fatal("expected error for non-canonical op")
+	}
+}
+
+func TestCmd_LogAppendMissingArgs(t *testing.T) {
+	root := copyTestdataVault(t)
+	_, _, err := executeCmd(t, "log", "append", "S01", "create", "--vault", root)
+	if err == nil {
+		t.Fatal("expected error for missing target arg")
+	}
+}
+
+func TestCmd_LogTailEmptyWhenNoLog(t *testing.T) {
+	root := copyTestdataVault(t)
+	out, _, err := executeCmd(t, "log", "tail", "S01", "--vault", root)
+	if err != nil {
+		t.Fatalf("log tail: %v", err)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Errorf("expected empty output, got:\n%s", out)
+	}
+}
+
 // copyTestdataVault creates a temp copy for write tests (reuses logic from domain tests).
 func copyTestdataVault(t *testing.T) string {
 	t.Helper()
